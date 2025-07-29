@@ -12,10 +12,19 @@ export default function HistorialReciclaje({ navigation }) {
         
         <View style={styles.buttonContainer}>
           <CustomButton
+            title="Procesar Salida"
+            onPress={() => navigation.navigate('Salida')}
+            variant="success"
+            icon="📤"
+            style={styles.button}
+          />
+          
+          <CustomButton
             title="Volver al Registro"
             onPress={() => navigation.navigate('Registro')}
             variant="outline"
             icon="🌱"
+            style={styles.button}
           />
         </View>
       </View>
@@ -50,5 +59,8 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: '100%',
     maxWidth: 300,
+  },
+  button: {
+    marginBottom: 15,
   },
 });

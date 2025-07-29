@@ -16,6 +16,15 @@ export default function RegistroReciclaje({ navigation }) {
             onPress={() => navigation.navigate('Historial')}
             variant="secondary"
             icon="📋"
+            style={styles.button}
+          />
+          
+          <CustomButton
+            title="Gestionar Salidas"
+            onPress={() => navigation.navigate('Salida')}
+            variant="success"
+            icon="📤"
+            style={styles.button}
           />
         </View>
       </View>
@@ -50,5 +59,8 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: '100%',
     maxWidth: 300,
+  },
+  button: {
+    marginBottom: 15,
   },
 });
