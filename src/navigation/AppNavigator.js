@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 
-// Screens (las crearemos después)
+// Screens
 import RegistroReciclaje from '../screens/RegistroReciclaje';
 import HistorialReciclaje from '../screens/HistorialReciclaje';
 import SalidaReciclaje from '../screens/SalidaReciclaje';

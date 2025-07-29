@@ -10,6 +10,7 @@ export default function CustomButton({
   textStyle,
   icon 
 }) {
+  // Lógica para determinar estilos basada en props
   const getButtonStyle = () => {
     let baseStyle = [styles.button];
     
