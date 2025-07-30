@@ -96,3 +96,77 @@ export const validateRegistroForm = (formData) => {
     errors
   };
 };
+
+// ===== FUNCIONES ADICIONALES PARA RecycleCard =====
+
+/**
+ * Formatea fecha y hora para mostrar (alias de formatDate para compatibilidad)
+ * @param {string} dateTimeString - Fecha en formato ISO
+ * @returns {string} Fecha formateada
+ */
+export const formatDateTime = (dateTimeString) => {
+  return formatDate(dateTimeString);
+};
+
+/**
+ * Obtener fecha actual en formato YYYY-MM-DDTHH:mm
+ * @returns {string} Fecha actual en formato ISO truncado
+ */
+export const getCurrentDate = () => {
+  const now = new Date();
+  return now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+};
+
+/**
+ * Obtener color por tipo de reciclaje
+ * @param {string} tipo - Tipo de material
+ * @returns {string} Color hexadecimal
+ */
+export const getColorByType = (tipo) => {
+  const colors = {
+    'Plástico': '#3B82F6',
+    'Cartón': '#F59E0B',
+    'Vidrio': '#10B981',
+    'Metal': '#6B7280',
+    'Otros': '#8B5CF6',
+  };
+  return colors[tipo] || '#6B7280';
+};
+
+/**
+ * Obtener icono por tipo de reciclaje
+ * @param {string} tipo - Tipo de material
+ * @returns {string} Emoji del icono
+ */
+export const getIconByType = (tipo) => {
+  const icons = {
+    'Plástico': '♻️',
+    'Cartón': '📦',
+    'Vidrio': '🍾',
+    'Metal': '🔧',
+    'Otros': '📄',
+  };
+  return icons[tipo] || '📄';
+};
+
+/**
+ * Validar formulario de salida
+ * @param {Object} formData - Datos del formulario de salida
+ * @returns {Object} Resultado de la validación
+ */
+export const validateSalidaForm = (formData) => {
+  const errors = {};
+  
+  if (!formData.fechaSalida) {
+    errors.fechaSalida = 'Debe seleccionar una fecha de salida';
+  }
+  
+  if (!formData.personaAutoriza) {
+    errors.personaAutoriza = 'Debe seleccionar quién autoriza la salida';
+  }
+  
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors
+  };
+};

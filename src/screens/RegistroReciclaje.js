@@ -21,7 +21,7 @@ export default function RegistroReciclaje({ navigation }) {
   const [formData, setFormData] = useState({
     peso: '',
     tipo: '',
-    fecha: getCurrentDateTime(), // Usar la nueva función con fecha y hora
+    fecha: getCurrentDateTime(), // Usar formato ISO para el formulario
     persona: '',
   });
   
