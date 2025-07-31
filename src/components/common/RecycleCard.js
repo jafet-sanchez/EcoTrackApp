@@ -3,7 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import CustomButton from './CustomButton';
 import { formatDateTime, getColorByType, getIconByType } from '../../utils/helpers';
 
+
 export default function RecycleCard({ registro, onSalida }) {
+
   const getEstadoStyle = (estado) => {
     return estado === 'Activo' 
       ? { backgroundColor: '#dcfce7', color: '#16a34a' }
@@ -77,6 +79,9 @@ export default function RecycleCard({ registro, onSalida }) {
   );
 }
 
+/**
+ * ESTILOS DEL COMPONENTE
+ */
 const styles = StyleSheet.create({
   card: {
     backgroundColor: 'white',

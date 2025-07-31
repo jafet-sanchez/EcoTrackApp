@@ -32,6 +32,14 @@ export const mockHistorialData = [
     persona: 'Laura',
     estado: 'Activo',
   },
+  {
+    id: 5,
+    tipo: 'Metal',
+    peso: 4.4,
+    fecha: '2025-07-31T16:20',
+    persona: 'Pedro',
+    estado: 'Activo',
+  },
 ];
 
 // Opciones para los dropdowns

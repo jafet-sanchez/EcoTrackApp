@@ -5,7 +5,8 @@ import {
   FlatList, 
   StyleSheet, 
   RefreshControl,
-  TouchableOpacity 
+  TouchableOpacity,
+  ScrollView 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,7 +17,7 @@ import {
   mockHistorialData, 
   estadosFilterOptions 
 } from '../data/mockData';
-import { formatDateTime } from '../utils/helpers';
+import { formatDateTime, getColorByType, getIconByType } from '../utils/helpers';
 
 export default function HistorialReciclaje({ navigation }) {
   // Estados para los datos y filtros
@@ -81,15 +82,129 @@ export default function HistorialReciclaje({ navigation }) {
     return filtrados;
   }, [registros, filtroEstado, filtroFecha]);
 
-  const handleSalida = (registro) => {
-    if (registro.estado !== 'Activo') {
-      console.log('⚠️ Intento de salida en registro no activo');
+  const registrosAgrupados = useMemo(() => {
+    console.log('🔄 Agrupando registros por tipo...');
+    
+    const agrupados = registrosFiltrados.reduce((acc, registro) => {
+      const tipo = registro.tipo;
+      
+      if (!acc[tipo]) {
+        // Primer registro de este tipo - inicializar grupo
+        acc[tipo] = {
+          id: `grupo-${tipo}`,
+          tipo: tipo,
+          peso: 0,
+          registrosOriginales: [], // Todos los registros originales
+          registrosActivos: [],    // Solo registros activos
+          registrosDespachados: [], // Solo registros despachados
+          cantidadTotal: 0,
+          cantidadActivos: 0,
+          cantidadDespachados: 0,
+          personas: new Set(), // Set para evitar duplicados
+          fechaUltima: registro.fecha,
+          estado: 'Activo' // Por defecto activo, se determina después
+        };
+      }
+      
+      // Agregar registro al grupo
+      acc[tipo].registrosOriginales.push(registro);
+      acc[tipo].peso += registro.peso;
+      acc[tipo].cantidadTotal++;
+      acc[tipo].personas.add(registro.persona);
+      
+      // Actualizar fecha si es más reciente
+      if (new Date(registro.fecha) > new Date(acc[tipo].fechaUltima)) {
+        acc[tipo].fechaUltima = registro.fecha;
+      }
+      
+      // Separar por estado
+      if (registro.estado === 'Activo') {
+        acc[tipo].registrosActivos.push(registro);
+        acc[tipo].cantidadActivos++;
+      } else if (registro.estado === 'Despachado') {
+        acc[tipo].registrosDespachados.push(registro);
+        acc[tipo].cantidadDespachados++;
+      }
+      
+      return acc;
+    }, {});
+    
+    // Convertir a array y determinar estado final
+    const gruposArray = Object.values(agrupados).map(grupo => {
+      // Convertir Set de personas a string
+      grupo.personasTexto = Array.from(grupo.personas).join(', ');
+      
+      // AGREGAR: Campos compatibles con RecycleCard individual
+      grupo.fecha = grupo.fechaUltima; // Para compatibilidad
+      grupo.persona = grupo.personasTexto; // Para compatibilidad
+      
+      // Determinar estado del grupo 
+      if (grupo.cantidadActivos > 0) {
+        grupo.estado = 'Activo'; // Si tiene activos, mostrar como Activo
+      } else {
+        grupo.estado = 'Despachado'; // Si solo tiene despachados
+      }
+      
+      // Información adicional para mostrar
+      grupo.infoDetalle = `${grupo.cantidadTotal} registro${grupo.cantidadTotal > 1 ? 's' : ''}`;
+      
+      return grupo;
+    });
+    
+    console.log('📦 Registros agrupados:', gruposArray);
+    return gruposArray;
+  }, [registrosFiltrados]);
+
+  // Calcular peso máximo por tipo DESDE LOS GRUPOS (no registros individuales)
+  const pesoMaximoPorTipo = useMemo(() => {
+    console.log('🧮 Calculando peso máximo por tipo desde grupos...');
+    
+    const maximos = {};
+    registrosAgrupados.forEach(grupo => {
+      maximos[grupo.tipo] = grupo.peso; // El peso total del grupo
+    });
+    
+    console.log('📏 Pesos máximos de grupos:', maximos);
+    return maximos;
+  }, [registrosAgrupados]); // CAMBIO: Depende de registrosAgrupados, no registrosFiltrados
+
+  const tiposUnicos = useMemo(() => {
+    const tipos = registrosAgrupados.map(grupo => grupo.tipo);
+    console.log('🏷️ Tipos únicos de grupos:', tipos);
+    return tipos;
+  }, [registrosAgrupados]); // CAMBIO: Usar registrosAgrupados
+
+  // DEBUG: console.logs para verificar agrupación
+  console.log('🔍 DEBUG AGRUPACIÓN:');
+  console.log('📊 Registros filtrados individuales:', registrosFiltrados.length);
+  console.log('📦 Grupos creados:', registrosAgrupados.length);
+  console.log('📋 Detalle de grupos:', registrosAgrupados);
+
+  const handleSalida = (grupo) => {
+    console.log('📤 Procesando salida de grupo:', grupo.tipo);
+    console.log('📋 DATOS COMPLETOS DEL GRUPO:', grupo);
+    console.log('🔢 Cantidad de registros activos:', grupo.cantidadActivos);
+    console.log('📊 REGISTROS ACTIVOS A PROCESAR:');
+    
+    grupo.registrosActivos.forEach((registro, index) => {
+      console.log(`   ${index + 1}. ID: ${registro.id}, Peso: ${registro.peso}kg, Persona: ${registro.persona}, Fecha: ${registro.fecha}`);
+    });
+    
+    if (grupo.cantidadActivos === 0) {
+      console.log('⚠️ No hay registros activos en este grupo');
       return;
     }
-
-    console.log('📤 Navegando a salida con registro:', registro.id);
+    
+    console.log(`✅ Navegando a salida con ${grupo.cantidadActivos} registro(s) activo(s)`);
+    
+    // Navegar con el grupo completo y los registros activos
     navigation.navigate('Salida', { 
-      registro: registro 
+      esGrupo: true,               // Indicar que es un grupo
+      grupo: grupo,                // Datos del grupo completo
+      registrosParaProcesar: grupo.registrosActivos, // Solo los activos
+      tipoMaterial: grupo.tipo,    // Tipo de material
+      pesoTotal: grupo.registrosActivos.reduce((sum, r) => sum + r.peso, 0), // Peso total de activos
+      cantidadRegistros: grupo.cantidadActivos // Cantidad de registros
     });
   };
 
@@ -104,10 +219,11 @@ export default function HistorialReciclaje({ navigation }) {
     console.log(`✅ Estado actualizado: Registro ${id} -> ${nuevoEstado}`);
   };
 
-  const renderRegistro = ({ item }) => (
+  const renderRegistro = ({ item: grupo }) => (
     <RecycleCard 
-      registro={item}
-      onSalida={() => handleSalida(item)}
+      registro={grupo} // Ahora es un grupo, no un registro individual
+      onSalida={() => handleSalida(grupo)}
+      esGrupo={true} // Indicar que es un grupo para que RecycleCard se adapte
     />
   );
 
@@ -174,6 +290,28 @@ export default function HistorialReciclaje({ navigation }) {
             <Text style={styles.statLabel}>Peso Total</Text>
           </View>
         </View>
+
+        {/* Sección de peso máximo por tipo */}
+        {tiposUnicos.length > 0 && (
+          <View style={styles.maxWeightSection}>
+            <Text style={styles.maxWeightTitle}>📏 Peso Máximo por Tipo:</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.maxWeightContainer}
+            >
+              {tiposUnicos.map((tipo) => (
+                <View key={tipo} style={styles.maxWeightItem}>
+                  <Text style={styles.maxWeightIcon}>{getIconByType(tipo)}</Text>
+                  <Text style={styles.maxWeightType}>{tipo}</Text>
+                  <Text style={styles.maxWeightValue}>
+                    {pesoMaximoPorTipo[tipo]}kg
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {/* Filtros */}
@@ -196,11 +334,11 @@ export default function HistorialReciclaje({ navigation }) {
         </View>
       </View>
 
-      {/* Lista de registros */}
+      {/* Lista de registros agrupados */}
       <FlatList
-        data={registrosFiltrados}
+        data={registrosAgrupados} // CAMBIO CRÍTICO: usar registrosAgrupados en lugar de registrosFiltrados
         renderItem={renderRegistro}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item) => item.id} // Ahora usa el id del grupo
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl
@@ -254,6 +392,7 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    marginBottom: 16,
   },
   statItem: {
     alignItems: 'center',
@@ -268,6 +407,46 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
+  
+  // NUEVOS ESTILOS: Sección de peso máximo por tipo
+  maxWeightSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  maxWeightTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  maxWeightContainer: {
+    paddingHorizontal: 8,
+  },
+  maxWeightItem: {
+    alignItems: 'center',
+    marginHorizontal: 8,
+    minWidth: 70,
+  },
+  maxWeightIcon: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  maxWeightType: {
+    fontSize: 11,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 2,
+    fontWeight: '500',
+  },
+  maxWeightValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#16a34a',
+  },
+  
   filtersContainer: {
     padding: 16,
     backgroundColor: 'white',
