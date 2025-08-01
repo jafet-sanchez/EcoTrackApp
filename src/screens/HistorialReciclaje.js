@@ -6,24 +6,21 @@ import {
   StyleSheet, 
   RefreshControl,
   TouchableOpacity,
-  ScrollView 
+  ScrollView,
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CustomButton from '../components/common/CustomButton';
-import CustomPicker from '../components/common/CustomPicker';
 import RecycleCard from '../components/common/RecycleCard';
 import { 
-  mockHistorialData, 
-  estadosFilterOptions 
+  mockHistorialData
 } from '../data/mockData';
 import { formatDateTime, getColorByType, getIconByType } from '../utils/helpers';
 
 export default function HistorialReciclaje({ navigation }) {
-  // Estados para los datos y filtros
+  // Estados para los datos
   const [registros, setRegistros] = useState([]);
-  const [filtroEstado, setFiltroEstado] = useState('all');
-  const [filtroFecha, setFiltroFecha] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -54,33 +51,11 @@ export default function HistorialReciclaje({ navigation }) {
     setRefreshing(false);
   };
 
+  // ✅ ACTUALIZADO: Usar todos los registros sin filtros
   const registrosFiltrados = useMemo(() => {
-    let filtrados = [...registros];
-
-    // Filtro por estado
-    if (filtroEstado !== 'all') {
-      filtrados = filtrados.filter(registro => registro.estado === filtroEstado);
-    }
-
-    // Filtro por fecha (últimos 7 días, 30 días, etc.)
-    if (filtroFecha !== 'all') {
-      const ahora = new Date();
-      const diasAtras = filtroFecha === '7d' ? 7 : filtroFecha === '30d' ? 30 : 0;
-      
-      if (diasAtras > 0) {
-        const fechaLimite = new Date(ahora.getTime() - (diasAtras * 24 * 60 * 60 * 1000));
-        filtrados = filtrados.filter(registro => {
-          const fechaRegistro = new Date(registro.fecha);
-          return fechaRegistro >= fechaLimite;
-        });
-      }
-    }
-
-    console.log(`🔍 Filtros aplicados: Estado=${filtroEstado}, Fecha=${filtroFecha}`);
-    console.log(`📊 Registros filtrados: ${filtrados.length}/${registros.length}`);
-    
-    return filtrados;
-  }, [registros, filtroEstado, filtroFecha]);
+    console.log('📊 Usando todos los registros sin filtros:', registros.length);
+    return [...registros];
+  }, [registros]);
 
   const registrosAgrupados = useMemo(() => {
     console.log('🔄 Agrupando registros por tipo...');
@@ -180,32 +155,37 @@ export default function HistorialReciclaje({ navigation }) {
   console.log('📦 Grupos creados:', registrosAgrupados.length);
   console.log('📋 Detalle de grupos:', registrosAgrupados);
 
+  // ✅ FUNCIÓN ACTUALIZADA: Navegación con parámetros serializables
   const handleSalida = (grupo) => {
     console.log('📤 Procesando salida de grupo:', grupo.tipo);
     console.log('📋 DATOS COMPLETOS DEL GRUPO:', grupo);
     console.log('🔢 Cantidad de registros activos:', grupo.cantidadActivos);
-    console.log('📊 REGISTROS ACTIVOS A PROCESAR:');
-    
-    grupo.registrosActivos.forEach((registro, index) => {
-      console.log(`   ${index + 1}. ID: ${registro.id}, Peso: ${registro.peso}kg, Persona: ${registro.persona}, Fecha: ${registro.fecha}`);
-    });
     
     if (grupo.cantidadActivos === 0) {
       console.log('⚠️ No hay registros activos en este grupo');
+      Alert.alert(
+        'Sin registros activos',
+        'Este grupo no tiene registros disponibles para procesar.',
+        [{ text: 'OK' }]
+      );
       return;
     }
     
-    console.log(`✅ Navegando a salida con ${grupo.cantidadActivos} registro(s) activo(s)`);
+    // ✅ SOLUCIÓN: Pasar solo datos serializables
+    const parametrosSerializables = {
+      esGrupo: true,                                                     // Boolean ✅
+      grupoTipo: grupo.tipo,                                            // String ✅
+      registrosActivosIds: grupo.registrosActivos.map(r => r.id),       // Array de números ✅
+      todosLosRegistrosIds: grupo.registrosOriginales.map(r => r.id),   // Array de números ✅
+      pesoTotal: grupo.registrosActivos.reduce((sum, r) => sum + r.peso, 0), // Number ✅
+      cantidadRegistros: grupo.cantidadActivos                          // Number ✅
+    };
     
-    // Navegar con el grupo completo y los registros activos
-    navigation.navigate('Salida', { 
-      esGrupo: true,               // Indicar que es un grupo
-      grupo: grupo,                // Datos del grupo completo
-      registrosParaProcesar: grupo.registrosActivos, // Solo los activos
-      tipoMaterial: grupo.tipo,    // Tipo de material
-      pesoTotal: grupo.registrosActivos.reduce((sum, r) => sum + r.peso, 0), // Peso total de activos
-      cantidadRegistros: grupo.cantidadActivos // Cantidad de registros
-    });
+    console.log('✅ PARÁMETROS SERIALIZABLES:', parametrosSerializables);
+    console.log(`🚀 Navegando a salida con ${grupo.cantidadActivos} registro(s) activo(s)`);
+    
+    // Navegar solo con datos serializables
+    navigation.navigate('Salida', parametrosSerializables);
   };
 
   const updateRegistroEstado = (id, nuevoEstado) => {
@@ -232,9 +212,7 @@ export default function HistorialReciclaje({ navigation }) {
       <Text style={styles.emptyIcon}>📭</Text>
       <Text style={styles.emptyTitle}>No hay registros</Text>
       <Text style={styles.emptySubtitle}>
-        {filtroEstado !== 'all' || filtroFecha !== 'all' 
-          ? 'Intenta cambiar los filtros' 
-          : 'Aún no has registrado ningún material'}
+        Aún no has registrado ningún material
       </Text>
       <CustomButton
         title="Registrar Material"
@@ -252,13 +230,6 @@ export default function HistorialReciclaje({ navigation }) {
     </View>
   );
 
-  // Opciones para filtro de fecha
-  const fechaFilterOptions = [
-    { label: 'Todas las fechas', value: 'all' },
-    { label: 'Últimos 7 días', value: '7d' },
-    { label: 'Últimos 30 días', value: '30d' },
-  ];
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -269,20 +240,12 @@ export default function HistorialReciclaje({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header con estadísticas */}
+      {/* ✅ Header con estadísticas - MÁS PEGADO ARRIBA */}
       <View style={styles.header}>
         <Text style={styles.title}>📋 Historial de Reciclaje</Text>
+        
+        {/* ✅ ACTUALIZADO: Solo mostrar Peso Total */}
         <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{registros.length}</Text>
-            <Text style={styles.statLabel}>Total</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>
-              {registros.filter(r => r.estado === 'Activo').length}
-            </Text>
-            <Text style={styles.statLabel}>Activos</Text>
-          </View>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
               {registros.reduce((sum, r) => sum + r.peso, 0).toFixed(1)}kg
@@ -314,31 +277,11 @@ export default function HistorialReciclaje({ navigation }) {
         )}
       </View>
 
-      {/* Filtros */}
-      <View style={styles.filtersContainer}>
-        <View style={styles.filterRow}>
-          <CustomPicker
-            label="Estado"
-            selectedValue={filtroEstado}
-            onValueChange={setFiltroEstado}
-            items={estadosFilterOptions}
-            style={styles.filterPicker}
-          />
-          <CustomPicker
-            label="Fecha"
-            selectedValue={filtroFecha}
-            onValueChange={setFiltroFecha}
-            items={fechaFilterOptions}
-            style={styles.filterPicker}
-          />
-        </View>
-      </View>
-
       {/* Lista de registros agrupados */}
       <FlatList
-        data={registrosAgrupados} // CAMBIO CRÍTICO: usar registrosAgrupados en lugar de registrosFiltrados
+        data={registrosAgrupados}
         renderItem={renderRegistro}
-        keyExtractor={(item) => item.id} // Ahora usa el id del grupo
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl
@@ -352,14 +295,13 @@ export default function HistorialReciclaje({ navigation }) {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Botones de acción */}
-      <View style={styles.actionButtons}>
+      {/* ✅ Botón fijo en la parte inferior - SIEMPRE VISIBLE */}
+      <View style={styles.floatingButton}>
         <CustomButton
-          title="Nuevo Registro"
+          title="🌱 Nuevo Registro"
           onPress={() => navigation.navigate('Registro')}
           variant="primary"
-          icon="🌱"
-          style={styles.actionButton}
+          style={styles.newRecordButton}
         />
       </View>
     </SafeAreaView>
@@ -372,7 +314,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fdf4',
   },
   header: {
-    padding: 20,
+    // ✅ CAMBIO: Reducir padding superior para pegarlo más arriba
+    paddingTop: 8,        // Reducido de 20 a 8
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    marginTop: 0,         // Asegurar que no tenga margen superior
     backgroundColor: 'white',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
@@ -390,8 +336,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
   },
   statItem: {
@@ -447,29 +393,10 @@ const styles = StyleSheet.create({
     color: '#16a34a',
   },
   
-  filtersContainer: {
-    padding: 16,
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  filterPicker: {
-    flex: 1,
-    marginBottom: 0,
-  },
   listContainer: {
     padding: 16,
-    paddingBottom: 100,
+    // ✅ CAMBIO: Aumentar padding inferior para el botón flotante
+    paddingBottom: 120,  // Aumentado de 100 a 120
   },
   emptyState: {
     alignItems: 'center',
@@ -505,13 +432,33 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#6B7280',
   },
-  actionButtons: {
+  
+  // ✅ NUEVO: Botón flotante fijo en la parte inferior
+  floatingButton: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#f0fdf4',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
+    // Agregar sombra sutil hacia arriba
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 8,
   },
-  actionButton: {
-    marginBottom: 8,
+  newRecordButton: {
+    backgroundColor: '#16a34a',
+    borderRadius: 12,
+    paddingVertical: 16,
+    // Sombra para que se vea elevado
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
 });

@@ -170,3 +170,198 @@ export const validateSalidaForm = (formData) => {
     errors
   };
 };
+
+//  ===== FUNCIONES NUEVAS PARA MANEJO DE DATOS SERIALIZABLES =====
+
+/**
+ * Buscar registros por IDs desde los datos mock
+ * @param {Array} registrosIds - Array de IDs a buscar
+ * @param {Array} todosLosRegistros - Array completo de registros (opcional, usa mockData por defecto)
+ * @returns {Array} Array de registros encontrados
+ */
+export const buscarRegistrosPorIds = (registrosIds, todosLosRegistros = null) => {
+  console.log('🔍 Buscando registros con IDs:', registrosIds);
+  
+  // Si no se pasan todos los registros, importar mockData
+  if (!todosLosRegistros) {
+    const { mockHistorialData } = require('../data/mockData');
+    todosLosRegistros = mockHistorialData;
+  }
+  
+  const registrosEncontrados = todosLosRegistros.filter(registro => 
+    registrosIds.includes(registro.id)
+  );
+  
+  console.log('✅ Registros encontrados:', registrosEncontrados.length);
+  return registrosEncontrados;
+};
+
+/**
+ * Crear grupo a partir de registros filtrados por tipo
+ * @param {string} tipo - Tipo de material
+ * @param {Array} registrosDeTipo - Registros del mismo tipo
+ * @returns {Object} Objeto grupo con toda la información necesaria
+ */
+export const crearGrupoDesdeRegistros = (tipo, registrosDeTipo) => {
+  console.log('🏗️ Creando grupo para tipo:', tipo, 'con', registrosDeTipo.length, 'registros');
+  
+  const registrosActivos = registrosDeTipo.filter(r => r.estado === 'Activo');
+  const registrosDespachados = registrosDeTipo.filter(r => r.estado === 'Despachado');
+  const pesoTotal = registrosDeTipo.reduce((sum, r) => sum + r.peso, 0);
+  const personas = [...new Set(registrosDeTipo.map(r => r.persona))];
+  
+  // Encontrar fecha más reciente
+  const fechaUltima = registrosDeTipo.reduce((maxFecha, registro) => {
+    return new Date(registro.fecha) > new Date(maxFecha) ? registro.fecha : maxFecha;
+  }, registrosDeTipo[0]?.fecha || new Date().toISOString());
+
+  const grupo = {
+    id: `grupo-${tipo}`,
+    tipo: tipo,
+    peso: pesoTotal,
+    registrosOriginales: registrosDeTipo,
+    registrosActivos: registrosActivos,
+    registrosDespachados: registrosDespachados,
+    cantidadTotal: registrosDeTipo.length,
+    cantidadActivos: registrosActivos.length,
+    cantidadDespachados: registrosDespachados.length,
+    personas: personas,
+    personasTexto: personas.join(', '),
+    fechaUltima: fechaUltima,
+    fecha: fechaUltima, // Para compatibilidad con RecycleCard
+    persona: personas.join(', '), // Para compatibilidad con RecycleCard
+    estado: registrosActivos.length > 0 ? 'Activo' : 'Despachado',
+    infoDetalle: `${registrosDeTipo.length} registro${registrosDeTipo.length > 1 ? 's' : ''}`
+  };
+  
+  console.log('✅ Grupo creado:', grupo);
+  return grupo;
+};
+
+/**
+ * Reconstruir grupo a partir de parámetros serializables
+ * @param {Object} params - Parámetros de navegación
+ * @returns {Object} Grupo reconstruido con todos los datos
+ */
+export const reconstruirGrupoDesdeParams = (params) => {
+  console.log('🔄 Reconstruyendo grupo desde parámetros:', params);
+  
+  const { grupoTipo, registrosActivosIds, todosLosRegistrosIds } = params;
+  
+  // Buscar todos los registros del grupo
+  const todosLosRegistros = buscarRegistrosPorIds(todosLosRegistrosIds);
+  
+  // Crear el grupo completo
+  const grupoReconstruido = crearGrupoDesdeRegistros(grupoTipo, todosLosRegistros);
+  
+  console.log('✅ Grupo reconstruido exitosamente:', grupoReconstruido);
+  return grupoReconstruido;
+};
+
+/**
+ * Buscar un registro individual por ID
+ * @param {number} registroId - ID del registro a buscar
+ * @param {Array} todosLosRegistros - Array completo de registros (opcional)
+ * @returns {Object|null} Registro encontrado o null
+ */
+export const buscarRegistroPorId = (registroId, todosLosRegistros = null) => {
+  console.log('🔍 Buscando registro individual con ID:', registroId);
+  
+  if (!todosLosRegistros) {
+    const { mockHistorialData } = require('../data/mockData');
+    todosLosRegistros = mockHistorialData;
+  }
+  
+  const registro = todosLosRegistros.find(r => r.id === registroId);
+  
+  if (registro) {
+    console.log('✅ Registro encontrado:', registro);
+  } else {
+    console.log('❌ Registro no encontrado');
+  }
+  
+  return registro || null;
+};
+
+/**
+ * Validación para parámetros de navegación
+ * @param {Object} params - Parámetros de navegación
+ * @returns {Object} Resultado de la validación
+ */
+export const validarParametrosNavegacion = (params) => {
+  console.log('🔍 Validando parámetros de navegación:', params);
+  
+  const errores = [];
+  
+  if (params.esGrupo) {
+    // Validaciones para grupo
+    if (!params.grupoTipo) {
+      errores.push('Falta grupoTipo');
+    }
+    if (!params.registrosActivosIds || !Array.isArray(params.registrosActivosIds)) {
+      errores.push('Falta registrosActivosIds o no es array');
+    }
+    if (!params.todosLosRegistrosIds || !Array.isArray(params.todosLosRegistrosIds)) {
+      errores.push('Falta todosLosRegistrosIds o no es array');
+    }
+    if (params.registrosActivosIds && params.registrosActivosIds.length === 0) {
+      errores.push('No hay registros activos para procesar');
+    }
+  } else {
+    // Validaciones para registro individual
+    if (!params.registroId && !params.registro) {
+      errores.push('Falta registroId o registro para registro individual');
+    }
+  }
+  
+  const resultado = {
+    esValido: errores.length === 0,
+    errores
+  };
+  
+  if (!resultado.esValido) {
+    console.log('❌ Parámetros inválidos:', errores);
+  } else {
+    console.log('✅ Parámetros válidos');
+  }
+  
+  return resultado;
+};
+
+/**
+ * Crear parámetros serializables para navegación a grupo
+ * @param {Object} grupo - Objeto grupo completo
+ * @returns {Object} Parámetros serializables
+ */
+export const crearParametrosGrupo = (grupo) => {
+  console.log('📦 Creando parámetros serializables para grupo:', grupo.tipo);
+  
+  const parametros = {
+    esGrupo: true,
+    grupoTipo: grupo.tipo,
+    registrosActivosIds: grupo.registrosActivos.map(r => r.id),
+    todosLosRegistrosIds: grupo.registrosOriginales.map(r => r.id),
+    pesoTotal: grupo.registrosActivos.reduce((sum, r) => sum + r.peso, 0),
+    cantidadRegistros: grupo.cantidadActivos
+  };
+  
+  console.log('✅ Parámetros serializables creados:', parametros);
+  return parametros;
+};
+
+/**
+ * Crear parámetros serializables para navegación a registro individual
+ * @param {Object} registro - Objeto registro individual
+ * @returns {Object} Parámetros serializables
+ */
+export const crearParametrosRegistro = (registro) => {
+  console.log('📋 Creando parámetros serializables para registro:', registro.id);
+  
+  const parametros = {
+    esGrupo: false,
+    registroId: registro.id
+  };
+  
+  console.log('✅ Parámetros serializables creados:', parametros);
+  return parametros;
+};
