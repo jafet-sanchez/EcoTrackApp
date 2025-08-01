@@ -24,6 +24,8 @@ import {
   buscarRegistrosPorIds,
   validarParametrosNavegacion
 } from '../utils/helpers';
+//  NUEVO: Importar Google Sheets Service
+import GoogleSheetsService from '../services/googleSheetsService';
 
 export default function SalidaReciclaje({ route, navigation }) {
   // Obtener parámetros serializables y reconstruir datos
@@ -167,6 +169,7 @@ export default function SalidaReciclaje({ route, navigation }) {
     }
   };
 
+  //  FUNCIÓN ACTUALIZADA: Usar Google Sheets para procesar despachos
   const handleSubmit = async () => {
     const validation = validateSalidaForm(formData);
     
@@ -184,34 +187,43 @@ export default function SalidaReciclaje({ route, navigation }) {
     setLoading(true);
     
     try {
-      // Procesar según el tipo
+      //  ACTUALIZADO: Procesar según el tipo usando Google Sheets
       if (esGrupo) {
-        console.log('🚀 Procesando salida del GRUPO:', grupo.tipo);
+        console.log('🚀 Procesando salida del GRUPO en Google Sheets:', grupo.tipo);
         console.log('📦 Registros a procesar:', registrosParaProcesar.length);
-        
-        // Simular procesamiento de salida del grupo
-        console.log('💾 Simulando actualización de estados del grupo...');
-        await new Promise(resolve => setTimeout(resolve, 2500));
         
         // Filtrar solo registros activos para procesar
         const registrosActivos = registrosParaProcesar.filter(r => r.estado === 'Activo');
         const pesoTotal = registrosActivos.reduce((sum, r) => sum + r.peso, 0);
         
-        // Datos completos de la salida del grupo
-        const salidaCompleta = {
-          tipo: 'grupo',
-          grupoTipo: grupo.tipo,
-          cantidadRegistros: registrosActivos.length,
-          pesoTotal: pesoTotal,
-          registrosIds: registrosActivos.map(r => r.id),
-          fechaSalida: formData.fechaSalida,
-          personaAutoriza: formData.personaAutoriza,
-          observaciones: formData.observaciones,
-          estadoAnterior: 'Activo',
-          estadoNuevo: 'Despachado'
-        };
+        console.log('💾 Procesando despacho de grupo en Google Sheets...');
         
-        console.log('✅ Salida de grupo procesada exitosamente:', salidaCompleta);
+        //  NUEVO: Procesar cada registro del grupo en Google Sheets
+        const resultadosDespacho = [];
+        for (const registroActivo of registrosActivos) {
+          const datosDespacho = {
+            tipo: registroActivo.tipo,
+            peso: registroActivo.peso,
+            fechaSalida: formData.fechaSalida,
+            personaAutoriza: formData.personaAutoriza,
+            observaciones: formData.observaciones
+          };
+          
+          // Procesar despacho individual en Google Sheets
+          const resultado = await GoogleSheetsService.procesarDespacho(
+            [registroActivo.id], 
+            datosDespacho
+          );
+          resultadosDespacho.push(...resultado);
+        }
+        
+        console.log('✅ Despacho de grupo procesado exitosamente en Google Sheets:', resultadosDespacho);
+        
+        //  NUEVO: Ejecutar callback para refrescar historial
+        if (routeParams.onDespachoCompleto) {
+          console.log('🔄 Ejecutando callback para refrescar historial...');
+          routeParams.onDespachoCompleto();
+        }
         
         // Mostrar confirmación detallada del grupo
         Alert.alert(
@@ -220,7 +232,8 @@ export default function SalidaReciclaje({ route, navigation }) {
           `📦 ${grupo.tipo}: ${pesoTotal}kg\n` +
           `📊 ${registrosActivos.length} registros procesados\n` +
           `📅 Autorizado: ${formData.fechaSalida}\n` +
-          `👤 Por: ${formData.personaAutoriza}` +
+          `👤 Por: ${formData.personaAutoriza}\n` +
+          `💾 Guardado en Google Sheets` +
           (formData.observaciones ? `\n📝 Observaciones: ${formData.observaciones}` : ''),
           [
             {
@@ -234,28 +247,28 @@ export default function SalidaReciclaje({ route, navigation }) {
         );
         
       } else {
-        console.log('🚀 Procesando salida del REGISTRO:', registro.id);
+        console.log('🚀 Procesando salida del REGISTRO en Google Sheets:', registro.id);
         
-        // Simular procesamiento de salida del registro individual
-        console.log('💾 Simulando actualización de estado...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('💾 Procesando despacho individual en Google Sheets...');
         
-        // Datos completos de la salida individual
-        const salidaCompleta = {
-          tipo: 'individual',
-          registroId: registro.id,
-          tipoMaterial: registro.tipo,
+        //  NUEVO: Procesar despacho individual en Google Sheets
+        const datosDespacho = {
+          tipo: registro.tipo,
           peso: registro.peso,
-          fechaRegistro: registro.fecha,
-          personaRegistro: registro.persona,
           fechaSalida: formData.fechaSalida,
           personaAutoriza: formData.personaAutoriza,
-          observaciones: formData.observaciones,
-          estadoAnterior: 'Activo',
-          estadoNuevo: 'Despachado'
+          observaciones: formData.observaciones
         };
         
-        console.log('✅ Salida individual procesada exitosamente:', salidaCompleta);
+        const resultado = await GoogleSheetsService.procesarDespacho([registro.id], datosDespacho);
+        
+        console.log('✅ Salida individual procesada exitosamente en Google Sheets:', resultado);
+        
+        // NUEVO: Ejecutar callback para refrescar historial
+        if (routeParams.onDespachoCompleto) {
+          console.log('🔄 Ejecutando callback para refrescar historial...');
+          routeParams.onDespachoCompleto();
+        }
         
         // Mostrar confirmación detallada del registro individual
         Alert.alert(
@@ -263,7 +276,8 @@ export default function SalidaReciclaje({ route, navigation }) {
           `Material despachado exitosamente:\n\n` +
           `📦 ${registro.tipo}: ${registro.peso}kg\n` +
           `📅 Autorizado: ${formData.fechaSalida}\n` +
-          `👤 Por: ${formData.personaAutoriza}` +
+          `👤 Por: ${formData.personaAutoriza}\n` +
+          `💾 Guardado en Google Sheets` +
           (formData.observaciones ? `\n📝 Observaciones: ${formData.observaciones}` : ''),
           [
             {
@@ -278,11 +292,26 @@ export default function SalidaReciclaje({ route, navigation }) {
       }
       
     } catch (error) {
-      console.error('❌ Error procesando salida:', error);
+      console.error('❌ Error procesando salida en Google Sheets:', error);
+      
+      //  NUEVO: Manejo específico de errores de Google Sheets
+      let mensajeError = 'No se pudo procesar la salida.';
+      
+      if (error.message.includes('No se pudo conectar')) {
+        mensajeError = 'Error de conexión con Google Sheets. Verifica tu internet.';
+      } else if (error.message.includes('API')) {
+        mensajeError = 'Error en la API de Google Sheets. Intenta más tarde.';
+      } else if (error.message.includes('no encontrado')) {
+        mensajeError = 'El registro no fue encontrado en Google Sheets.';
+      }
+      
       Alert.alert(
-        '❌ Error',
-        'No se pudo procesar la salida. Intenta nuevamente.',
-        [{ text: 'OK' }]
+        '❌ Error al Procesar Salida',
+        `${mensajeError}\n\nDetalles: ${error.message}`,
+        [
+          { text: 'Reintentar', onPress: () => handleSubmit() },
+          { text: 'Cancelar' }
+        ]
       );
     } finally {
       setLoading(false);
@@ -374,6 +403,12 @@ export default function SalidaReciclaje({ route, navigation }) {
                 : 'Completar información para despacho'
               }
             </Text>
+            {/* NUEVO: Indicador de Google Sheets */}
+            <View style={styles.googleSheetsIndicator}>
+              <Text style={styles.googleSheetsText}>
+                📊 Procesado en Google Sheets
+              </Text>
+            </View>
           </View>
 
           {/* Información del registro/grupo */}
@@ -466,6 +501,20 @@ export default function SalidaReciclaje({ route, navigation }) {
             )}
           </View>
 
+          {/* NUEVO: Información del proceso */}
+          <View style={styles.processInfo}>
+            <Text style={styles.processInfoTitle}>ℹ️ Proceso de despacho</Text>
+            <Text style={styles.processInfoText}>
+              • Se actualizará el estado a "Despachado" en Google Sheets
+            </Text>
+            <Text style={styles.processInfoText}>
+              • Se creará un registro de salida automáticamente
+            </Text>
+            <Text style={styles.processInfoText}>
+              • Los cambios se reflejarán inmediatamente en el historial
+            </Text>
+          </View>
+
           {/* Formulario de salida */}
           <View style={styles.form}>
             <Text style={styles.sectionTitle}>📝 Datos de Salida</Text>
@@ -514,7 +563,7 @@ export default function SalidaReciclaje({ route, navigation }) {
             />
             
             <CustomButton
-              title={loading ? "Procesando..." : "Confirmar Salida"}
+              title={loading ? "Procesando en Google Sheets..." : "📊 Confirmar Salida"}
               onPress={handleSubmit}
               disabled={loading}
               variant="success"
@@ -560,6 +609,21 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: 12,
+  },
+  //  NUEVO: Indicador de Google Sheets
+  googleSheetsIndicator: {
+    backgroundColor: '#eff6ff',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  googleSheetsText: {
+    fontSize: 12,
+    color: '#1e40af',
+    fontWeight: '600',
   },
   
   // Section styles
@@ -572,7 +636,7 @@ const styles = StyleSheet.create({
   
   // Registro info styles
   registroInfo: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   registroCard: {
     backgroundColor: 'white',
@@ -623,7 +687,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#374151',
   },
-  // Estilo para mostrar cantidad de registros
   cantidadText: {
     fontSize: 14,
     color: '#6B7280',
@@ -717,6 +780,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#16a34a',
     textTransform: 'uppercase',
+  },
+  
+  // NUEVO: Estilos para información del proceso
+  processInfo: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  processInfoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 8,
+  },
+  processInfoText: {
+    fontSize: 12,
+    color: '#92400e',
+    marginBottom: 4,
+    lineHeight: 16,
   },
   
   // Form styles

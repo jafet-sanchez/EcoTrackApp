@@ -13,9 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CustomButton from '../components/common/CustomButton';
 import RecycleCard from '../components/common/RecycleCard';
-import { 
-  mockHistorialData
-} from '../data/mockData';
+// Importar Google Sheets Service en lugar de mockData
+import GoogleSheetsService from '../services/googleSheetsService';
 import { formatDateTime, getColorByType, getIconByType } from '../utils/helpers';
 
 export default function HistorialReciclaje({ navigation }) {
@@ -23,35 +22,59 @@ export default function HistorialReciclaje({ navigation }) {
   const [registros, setRegistros] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  // NUEVO: Estado para manejar errores de conexión
+  const [error, setError] = useState(null);
 
-  // Simular carga inicial de datos
+  // CAMBIO: Cargar datos desde Google Sheets
   useEffect(() => {
-    loadData();
+    loadDataFromGoogleSheets();
   }, []);
 
-  const loadData = async () => {
+  // NUEVA FUNCIÓN: Cargar datos desde Google Sheets
+  const loadDataFromGoogleSheets = async () => {
     try {
       setLoading(true);
-      // Simular llamada a API con delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setError(null);
+      console.log('📊 Cargando datos desde Google Sheets...');
       
-      // Copiar datos mock (evita mutaciones directas)
-      setRegistros([...mockHistorialData]);
-      console.log('📊 Datos cargados:', mockHistorialData.length, 'registros');
+      // Probar conexión primero
+      const conexionExitosa = await GoogleSheetsService.probarConexion();
+      if (!conexionExitosa) {
+        throw new Error('No se pudo conectar con Google Sheets');
+      }
+      
+      // Obtener registros
+      const registrosDesdeSheet = await GoogleSheetsService.obtenerRegistros();
+      setRegistros(registrosDesdeSheet);
+      
+      console.log('✅ Datos cargados exitosamente:', registrosDesdeSheet.length, 'registros');
+      
     } catch (error) {
-      console.error('❌ Error cargando datos:', error);
+      console.error('❌ Error cargando datos desde Google Sheets:', error);
+      setError(error.message);
+      
+      // Mostrar alerta de error
+      Alert.alert(
+        '❌ Error de conexión',
+        'No se pudieron cargar los datos desde Google Sheets. Verifica tu conexión a internet.',
+        [
+          { text: 'Reintentar', onPress: () => loadDataFromGoogleSheets() },
+          { text: 'Cancelar' }
+        ]
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  // CAMBIO: Función de refresh actualizada
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await loadDataFromGoogleSheets();
     setRefreshing(false);
   };
 
-  // ✅ ACTUALIZADO: Usar todos los registros sin filtros
+  // Usar todos los registros sin filtros
   const registrosFiltrados = useMemo(() => {
     console.log('📊 Usando todos los registros sin filtros:', registros.length);
     return [...registros];
@@ -130,7 +153,7 @@ export default function HistorialReciclaje({ navigation }) {
     return gruposArray;
   }, [registrosFiltrados]);
 
-  // Calcular peso máximo por tipo DESDE LOS GRUPOS (no registros individuales)
+  // Calcular peso máximo por tipo DESDE LOS GRUPOS
   const pesoMaximoPorTipo = useMemo(() => {
     console.log('🧮 Calculando peso máximo por tipo desde grupos...');
     
@@ -141,13 +164,13 @@ export default function HistorialReciclaje({ navigation }) {
     
     console.log('📏 Pesos máximos de grupos:', maximos);
     return maximos;
-  }, [registrosAgrupados]); // CAMBIO: Depende de registrosAgrupados, no registrosFiltrados
+  }, [registrosAgrupados]);
 
   const tiposUnicos = useMemo(() => {
     const tipos = registrosAgrupados.map(grupo => grupo.tipo);
     console.log('🏷️ Tipos únicos de grupos:', tipos);
     return tipos;
-  }, [registrosAgrupados]); // CAMBIO: Usar registrosAgrupados
+  }, [registrosAgrupados]);
 
   // DEBUG: console.logs para verificar agrupación
   console.log('🔍 DEBUG AGRUPACIÓN:');
@@ -155,7 +178,7 @@ export default function HistorialReciclaje({ navigation }) {
   console.log('📦 Grupos creados:', registrosAgrupados.length);
   console.log('📋 Detalle de grupos:', registrosAgrupados);
 
-  // ✅ FUNCIÓN ACTUALIZADA: Navegación con parámetros serializables
+  // FUNCIÓN ACTUALIZADA: Navegación con Google Sheets data
   const handleSalida = (grupo) => {
     console.log('📤 Procesando salida de grupo:', grupo.tipo);
     console.log('📋 DATOS COMPLETOS DEL GRUPO:', grupo);
@@ -171,62 +194,77 @@ export default function HistorialReciclaje({ navigation }) {
       return;
     }
     
-    // ✅ SOLUCIÓN: Pasar solo datos serializables
+    // Pasar datos serializables + función de callback para actualizar datos
     const parametrosSerializables = {
-      esGrupo: true,                                                     // Boolean ✅
-      grupoTipo: grupo.tipo,                                            // String ✅
-      registrosActivosIds: grupo.registrosActivos.map(r => r.id),       // Array de números ✅
-      todosLosRegistrosIds: grupo.registrosOriginales.map(r => r.id),   // Array de números ✅
-      pesoTotal: grupo.registrosActivos.reduce((sum, r) => sum + r.peso, 0), // Number ✅
-      cantidadRegistros: grupo.cantidadActivos                          // Number ✅
+      esGrupo: true,
+      grupoTipo: grupo.tipo,
+      registrosActivosIds: grupo.registrosActivos.map(r => r.id),
+      todosLosRegistrosIds: grupo.registrosOriginales.map(r => r.id),
+      pesoTotal: grupo.registrosActivos.reduce((sum, r) => sum + r.peso, 0),
+      cantidadRegistros: grupo.cantidadActivos,
+      // ✅ NUEVO: Callback para refrescar datos después del despacho
+      onDespachoCompleto: () => {
+        console.log('🔄 Despacho completado, recargando datos...');
+        loadDataFromGoogleSheets();
+      }
     };
     
     console.log('✅ PARÁMETROS SERIALIZABLES:', parametrosSerializables);
     console.log(`🚀 Navegando a salida con ${grupo.cantidadActivos} registro(s) activo(s)`);
     
-    // Navegar solo con datos serializables
+    // Navegar con datos actualizados
     navigation.navigate('Salida', parametrosSerializables);
-  };
-
-  const updateRegistroEstado = (id, nuevoEstado) => {
-    setRegistros(prevRegistros => 
-      prevRegistros.map(registro => 
-        registro.id === id 
-          ? { ...registro, estado: nuevoEstado }
-          : registro
-      )
-    );
-    console.log(`✅ Estado actualizado: Registro ${id} -> ${nuevoEstado}`);
   };
 
   const renderRegistro = ({ item: grupo }) => (
     <RecycleCard 
-      registro={grupo} // Ahora es un grupo, no un registro individual
+      registro={grupo}
       onSalida={() => handleSalida(grupo)}
-      esGrupo={true} // Indicar que es un grupo para que RecycleCard se adapte
+      esGrupo={true}
     />
   );
 
+  // COMPONENTE ACTUALIZADO: Estado vacío con opción de recargar
   const EmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyIcon}>📭</Text>
-      <Text style={styles.emptyTitle}>No hay registros</Text>
-      <Text style={styles.emptySubtitle}>
-        Aún no has registrado ningún material
+      <Text style={styles.emptyIcon}>
+        {error ? '⚠️' : '📭'}
       </Text>
-      <CustomButton
-        title="Registrar Material"
-        onPress={() => navigation.navigate('Registro')}
-        variant="primary"
-        icon="🌱"
-        style={styles.emptyButton}
-      />
+      <Text style={styles.emptyTitle}>
+        {error ? 'Error de conexión' : 'No hay registros'}
+      </Text>
+      <Text style={styles.emptySubtitle}>
+        {error 
+          ? 'No se pudieron cargar los datos desde Google Sheets'
+          : 'Aún no has registrado ningún material'
+        }
+      </Text>
+      <View style={styles.emptyButtons}>
+        {error && (
+          <CustomButton
+            title="Reintentar"
+            onPress={loadDataFromGoogleSheets}
+            variant="outline"
+            icon="🔄"
+            style={styles.emptyButton}
+          />
+        )}
+        <CustomButton
+          title="Registrar Material"
+          onPress={() => navigation.navigate('Registro')}
+          variant="primary"
+          icon="🌱"
+          style={styles.emptyButton}
+        />
+      </View>
     </View>
   );
 
+  // COMPONENTE ACTUALIZADO: Loading con mensaje de Google Sheets
   const LoadingState = () => (
     <View style={styles.loadingState}>
-      <Text style={styles.loadingText}>🔄 Cargando registros...</Text>
+      <Text style={styles.loadingText}>🔄 Cargando desde Google Sheets...</Text>
+      <Text style={styles.loadingSubtext}>Conectando con la base de datos</Text>
     </View>
   );
 
@@ -240,11 +278,18 @@ export default function HistorialReciclaje({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* ✅ Header con estadísticas - MÁS PEGADO ARRIBA */}
+      {/* Header con estadísticas */}
       <View style={styles.header}>
         <Text style={styles.title}>📋 Historial de Reciclaje</Text>
         
-        {/* ✅ ACTUALIZADO: Solo mostrar Peso Total */}
+        {/* NUEVO: Indicador de conexión */}
+        <View style={styles.connectionStatus}>
+          <Text style={styles.connectionText}>
+            📊 Conectado a Google Sheets
+          </Text>
+        </View>
+        
+        {/* Solo mostrar Peso Total */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
@@ -289,13 +334,14 @@ export default function HistorialReciclaje({ navigation }) {
             onRefresh={onRefresh}
             colors={['#16a34a']}
             tintColor="#16a34a"
+            title="Actualizando desde Google Sheets..."
           />
         }
         ListEmptyComponent={EmptyState}
         showsVerticalScrollIndicator={false}
       />
 
-      {/* ✅ Botón fijo en la parte inferior - SIEMPRE VISIBLE */}
+      {/* Botón fijo en la parte inferior */}
       <View style={styles.floatingButton}>
         <CustomButton
           title="🌱 Nuevo Registro"
@@ -314,11 +360,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fdf4',
   },
   header: {
-    // ✅ CAMBIO: Reducir padding superior para pegarlo más arriba
-    paddingTop: 8,        // Reducido de 20 a 8
+    paddingTop: 8,
     paddingHorizontal: 20,
     paddingBottom: 20,
-    marginTop: 0,         // Asegurar que no tenga margen superior
+    marginTop: 0,
     backgroundColor: 'white',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
@@ -333,7 +378,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#16a34a',
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  // NUEVO: Estilos para indicador de conexión
+  connectionStatus: {
+    alignItems: 'center',
     marginBottom: 16,
+  },
+  connectionText: {
+    fontSize: 12,
+    color: '#10b981',
+    fontWeight: '500',
   },
   statsContainer: {
     justifyContent: 'center',
@@ -354,7 +409,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   
-  // NUEVOS ESTILOS: Sección de peso máximo por tipo
   maxWeightSection: {
     marginTop: 16,
     paddingTop: 16,
@@ -395,8 +449,7 @@ const styles = StyleSheet.create({
   
   listContainer: {
     padding: 16,
-    // ✅ CAMBIO: Aumentar padding inferior para el botón flotante
-    paddingBottom: 120,  // Aumentado de 100 a 120
+    paddingBottom: 120,
   },
   emptyState: {
     alignItems: 'center',
@@ -420,8 +473,15 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 22,
   },
+  // ✅ NUEVO: Estilos para múltiples botones en estado vacío
+  emptyButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
   emptyButton: {
-    minWidth: 200,
+    minWidth: 140,
   },
   loadingState: {
     flex: 1,
@@ -431,9 +491,14 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 18,
     color: '#6B7280',
+    marginBottom: 8,
+  },
+  // ✅ NUEVO: Subtexto en loading
+  loadingSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
   },
   
-  // ✅ NUEVO: Botón flotante fijo en la parte inferior
   floatingButton: {
     position: 'absolute',
     bottom: 0,
@@ -443,7 +508,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 20,
-    // Agregar sombra sutil hacia arriba
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -454,7 +518,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#16a34a',
     borderRadius: 12,
     paddingVertical: 16,
-    // Sombra para que se vea elevado
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,

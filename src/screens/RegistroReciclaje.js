@@ -16,12 +16,14 @@ import CustomPicker from '../components/common/CustomPicker';
 import CustomButton from '../components/common/CustomButton';
 import { tiposReciclajeOptions, personasOptions } from '../data/mockData';
 import { getCurrentDateTime, validateRegistroForm } from '../utils/helpers';
+// NUEVO: Importar Google Sheets Service
+import GoogleSheetsService from '../services/googleSheetsService';
 
 export default function RegistroReciclaje({ navigation }) {
   const [formData, setFormData] = useState({
     peso: '',
     tipo: '',
-    fecha: getCurrentDateTime(), // Usar formato ISO para el formulario
+    fecha: getCurrentDateTime(),
     persona: '',
   });
   
@@ -43,8 +45,9 @@ export default function RegistroReciclaje({ navigation }) {
     }
   };
 
+  // FUNCIÓN ACTUALIZADA: Guardar en Google Sheets
   const handleSubmit = async () => {
-    console.log('🚀 Iniciando handleSubmit');
+    console.log('🚀 Iniciando handleSubmit con Google Sheets');
     console.log('📋 Datos del formulario:', formData);
     
     const validation = validateRegistroForm(formData);
@@ -61,29 +64,33 @@ export default function RegistroReciclaje({ navigation }) {
       return;
     }
 
-    console.log('⏳ Iniciando proceso de guardado');
+    console.log('⏳ Iniciando proceso de guardado en Google Sheets');
     setLoading(true);
     
     try {
-      // Crear registro con fecha y hora actual al momento de guardar
-      const registro = {
-        id: Date.now().toString(),
-        ...formData,
+      // NUEVO: Preparar registro para Google Sheets
+      const nuevoRegistro = {
+        tipo: formData.tipo,
         peso: parseFloat(formData.peso),
-        fecha: getCurrentDateTime(), // Actualizar con fecha y hora al momento de guardar
+        fecha: getCurrentDateTime(), // Fecha y hora actual al momento de guardar
+        persona: formData.persona,
       };
 
-      // Simular llamada a API
-      console.log('💾 Simulando guardado...');
-      console.log('📊 Registro completo:', registro);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      console.log('📊 Registro a guardar en Google Sheets:', nuevoRegistro);
       
-      console.log('🎉 Guardado exitoso, mostrando alerta');
+      // NUEVO: Guardar en Google Sheets
+      const registroGuardado = await GoogleSheetsService.crearRegistro(nuevoRegistro);
+      
+      console.log('🎉 Guardado exitoso en Google Sheets:', registroGuardado);
       
       // Mostrar mensaje de éxito con botones
       Alert.alert(
         '🎉 ¡Registro Exitoso!',
-        `Registro guardado correctamente:\n\n${formData.tipo}: ${formData.peso}kg\nRegistrado por: ${formData.persona}\nFecha: ${registro.fecha}`,
+        `Registro guardado en Google Sheets:\n\n` +
+        `📦 ${formData.tipo}: ${formData.peso}kg\n` +
+        `👤 Registrado por: ${formData.persona}\n` +
+        `📅 Fecha: ${nuevoRegistro.fecha}\n` +
+        `🆔 ID: ${registroGuardado.id}`,
         [
           {
             text: 'Ver Historial',
@@ -103,11 +110,24 @@ export default function RegistroReciclaje({ navigation }) {
       );
       
     } catch (error) {
-      console.log('❌ Error al guardar:', error);
+      console.error('❌ Error al guardar en Google Sheets:', error);
+      
+      // NUEVO: Manejo específico de errores de Google Sheets
+      let mensajeError = 'No se pudo guardar el registro.';
+      
+      if (error.message.includes('No se pudo conectar')) {
+        mensajeError = 'Error de conexión con Google Sheets. Verifica tu internet.';
+      } else if (error.message.includes('API')) {
+        mensajeError = 'Error en la API de Google Sheets. Intenta más tarde.';
+      }
+      
       Alert.alert(
-        '❌ Error',
-        'No se pudo guardar el registro. Intenta nuevamente.',
-        [{ text: 'OK' }]
+        '❌ Error al Guardar',
+        `${mensajeError}\n\nDetalles: ${error.message}`,
+        [
+          { text: 'Reintentar', onPress: () => handleSubmit() },
+          { text: 'Cancelar' }
+        ]
       );
     } finally {
       console.log('✅ Finalizando proceso');
@@ -135,6 +155,39 @@ export default function RegistroReciclaje({ navigation }) {
     console.log('🕒 Fecha y hora actualizada:', newDateTime);
   };
 
+  // NUEVA FUNCIÓN: Probar conexión con Google Sheets
+  const probarConexion = async () => {
+    console.log('🔍 Probando conexión con Google Sheets...');
+    setLoading(true);
+    
+    try {
+      const conexionExitosa = await GoogleSheetsService.probarConexion();
+      
+      if (conexionExitosa) {
+        Alert.alert(
+          '✅ Conexión Exitosa',
+          'La conexión con Google Sheets está funcionando correctamente.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          '❌ Error de Conexión',
+          'No se pudo conectar con Google Sheets. Verifica tu configuración.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error probando conexión:', error);
+      Alert.alert(
+        '❌ Error',
+        `Error al probar la conexión: ${error.message}`,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
@@ -152,6 +205,15 @@ export default function RegistroReciclaje({ navigation }) {
             <Text style={styles.subtitle}>
               Completa los datos para registrar un nuevo material reciclado
             </Text>
+            {/* NUEVO: Indicador de conexión */}
+            <View style={styles.connectionIndicator}>
+              <Text style={styles.connectionText}>
+                📊 Guardado en Google Sheets
+              </Text>
+              <TouchableOpacity onPress={probarConexion} style={styles.testConnectionButton}>
+                <Text style={styles.testConnectionText}>🔍 Probar conexión</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Formulario */}
@@ -216,11 +278,11 @@ export default function RegistroReciclaje({ navigation }) {
             />
             
             <CustomButton
-              title={loading ? "Guardando..." : "Registrar Reciclaje"}
+              title={loading ? "Guardando en Google Sheets..." : "💾 Registrar en Google Sheets"}
               onPress={handleSubmit}
               disabled={loading}
               variant="success"
-              icon={loading ? "⏳" : "💾"}
+              icon={loading ? "⏳" : "📊"}
               style={styles.button}
             />
           </View>
@@ -260,6 +322,34 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: 12,
+  },
+  // NUEVOS: Estilos para indicador de conexión
+  connectionIndicator: {
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#10b981',
+  },
+  connectionText: {
+    fontSize: 12,
+    color: '#10b981',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  testConnectionButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  testConnectionText: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: '500',
   },
   form: {
     backgroundColor: 'white',
@@ -291,6 +381,27 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
     fontWeight: '600',
+  },
+  // NUEVOS: Estilos para sección de información
+  infoSection: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e40af',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 12,
+    color: '#1e40af',
+    marginBottom: 4,
+    lineHeight: 16,
   },
   buttonContainer: {
     gap: 12,
