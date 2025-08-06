@@ -30,19 +30,19 @@
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-gray-800 p-4 rounded-lg shadow text-center">
           <p class="text-sm text-gray-400">Registros</p>
-          <p id="dash-registros" class="text-2xl font-bold text-white">0</p>
+          <p id="dash-registros" class="text-2xl font-bold text-white">10</p>
         </div>
         <div class="bg-gray-800 p-4 rounded-lg shadow text-center">
           <p class="text-sm text-gray-400">Peso Total</p>
-          <p id="dash-peso" class="text-2xl font-bold text-white">0 kg</p>
+          <p id="dash-peso" class="text-2xl font-bold text-white">10 kg</p>
         </div>
         <div class="bg-gray-800 p-4 rounded-lg shadow text-center">
           <p class="text-sm text-gray-400">Salidas</p>
-          <p id="dash-salidas" class="text-2xl font-bold text-white">0</p>
+          <p id="dash-salidas" class="text-2xl font-bold text-white">10</p>
         </div>
         <div class="bg-gray-800 p-4 rounded-lg shadow text-center">
           <p class="text-sm text-gray-400">Despachados</p>
-          <p id="dash-despachados" class="text-2xl font-bold text-white">0</p>
+          <p id="dash-despachados" class="text-2xl font-bold text-white">10</p>
         </div>
       </div>
 
@@ -81,18 +81,48 @@
         </ul>
       </div>
 
-      <!-- Gráfico -->
-      <div class="bg-gray-800 p-6 rounded-lg shadow">
-        <h2 class="text-lg font-semibold mb-4">Visitas Mensuales</h2>
-        <canvas id="visitasChart" height="100"></canvas>
-      </div>
+       <!-- Formulario de Registro -->
+        <div class="bg-gray-800 p-6 rounded-lg shadow mb-6">
+          <h2 class="text-lg font-semibold mb-4">Registrar Reciclaje</h2>
+          <form id="form-reciclaje" class="space-y-4">
+            <div>
+              <label for="peso-reciclaje" class="block mb-1 text-sm">Peso (kg)</label>
+              <input type="number" id="peso-reciclaje" class="w-full p-2 rounded bg-gray-700 text-white" required>
+            </div>
+            <div>
+              <label for="tipo-reciclaje" class="block mb-1 text-sm">Tipo de Reciclaje</label>
+              <select id="tipo-reciclaje" class="w-full p-2 rounded bg-gray-700 text-white" required>
+                <option value="">Selecciona un tipo</option>
+                <option value="Plástico">Plástico</option>
+                <option value="Cartón">Cartón</option>
+                <option value="Vidrio">Vidrio</option>
+                <option value="Metal">Metal</option>
+                <option value="Otros">Otros</option>
+              </select>
+            </div>
+            <div>
+              <label for="fecha-reciclaje" class="block mb-1 text-sm">Fecha</label>
+              <input type="date" id="fecha-reciclaje" class="w-full p-2 rounded bg-gray-700 text-white" required>
+            </div>
+            <div>
+              <label for="persona-reciclaje" class="block mb-1 text-sm">Persona que registra</label>
+              <select id="persona-reciclaje" class="w-full p-2 rounded bg-gray-700 text-white" required>
+                <option value="">Selecciona una persona</option>
+                <option value="Juan">Juan</option>
+                <option value="Ana">Ana</option>
+                <option value="Pedro">Pedro</option>
+                <option value="Laura">Laura</option>
+              </select>
+            </div>
+            <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Registrar Reciclaje</button>
+            <p id="alerta-reciclaje" class="text-sm mt-2 text-center"></p>
+          </form>
+        </div>
+      </section>
     </main>
+    </div>
+   </main>
   </div>
-
-  <!-- FontAwesome for icons -->
-  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
-
-  <!-- Script de Chart.js -->
   <script src="app.js"></script>
 </body>
 </html>

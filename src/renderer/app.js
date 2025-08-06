@@ -1,3 +1,35 @@
+const fechaInput = document.getElementById('fecha-reciclaje');
+    if (fechaInput) {
+      const hoy = new Date();
+      const yyyy = hoy.getFullYear();
+      const mm = (hoy.getMonth() + 1).toString().padStart(2, '0');
+      const dd = hoy.getDate().toString().padStart(2, '0');
+      fechaInput.value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    const form = document.getElementById('form-reciclaje');
+    const alerta = document.getElementById('alerta-reciclaje');
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const peso = document.getElementById('peso-reciclaje').value;
+        const tipo = document.getElementById('tipo-reciclaje').value;
+        const fecha = document.getElementById('fecha-reciclaje').value;
+        const persona = document.getElementById('persona-reciclaje').value;
+
+        if (!peso || !tipo || !fecha || !persona) {
+          alerta.textContent = 'Todos los campos son obligatorios';
+          alerta.className = 'text-red-500';
+        } else {
+          alerta.textContent = '¡Registro guardado con éxito!';
+          alerta.className = 'text-green-500';
+          form.reset();
+          fechaInput.value = `${yyyy}-${mm}-${dd}`;
+        }
+      });
+    }
+
 // ===========================================
 // VARIABLES GLOBALES
 // ===========================================
