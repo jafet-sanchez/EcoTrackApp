@@ -211,13 +211,6 @@ function setupMenu() {
             mainWindow.reload();
           }
         },
-        {
-          label: 'Alternar DevTools',
-          accelerator: 'F12',
-          click: () => {
-            mainWindow.webContents.toggleDevTools();
-          }
-        },
         { type: 'separator' },
         {
           label: 'Zoom Actual',
@@ -241,13 +234,6 @@ function setupMenu() {
     {
       label: 'Herramientas',
       submenu: [
-        {
-          label: 'Abrir Carpeta de Datos',
-          click: () => {
-            const documentsPath = path.join(os.homedir(), 'Documents');
-            shell.openPath(documentsPath);
-          }
-        },
         {
           label: 'Backup Automático',
           type: 'checkbox',
