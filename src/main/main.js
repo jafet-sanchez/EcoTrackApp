@@ -34,7 +34,7 @@ function createMainWindow() {
       enableRemoteModule: true,
       webSecurity: false // Para desarrollo local
     },
-    icon: path.join(__dirname, '../../assets/icons/icon.png'),
+    icon: path.join(__dirname, '../../assets/icons/icon2.ico'),
     show: false, // No mostrar hasta que esté listo
     titleBarStyle: 'default',
     frame: true,
@@ -193,12 +193,6 @@ function setupMenu() {
             mainWindow.webContents.send('menu-nueva-salida');
           }
         },
-        {
-          label: 'Historial de Salidas',
-          click: () => {
-            mainWindow.webContents.send('menu-historial-salidas');
-          }
-        }
       ]
     },
     {
@@ -275,7 +269,7 @@ function setupMenu() {
               title: 'Acerca de EcoTrak Desktop',
               message: 'EcoTrak App v1.0.0',
               detail: 'Sistema de gestión de reciclaje para escritorio.\n\nDesarrollado Por Jafet sanchez ruiz.\n\n© 2025 - Todos los derechos reservados.',
-              icon: path.join(__dirname, '../../assets/icons/icon.png')
+              icon: path.join(__dirname, '../../assets/icons/icon3.ico')
             });
           }
         }

@@ -43,7 +43,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "assets/icons/icon.ico",
+      "icon": "assets/icons/icon2.ico",
       "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
@@ -58,7 +58,7 @@
     },
     "linux": {
       "target": "AppImage",
-      "icon": "assets/icons/icon1.png"
+      "icon": "assets/icons/icon3.ico"
     }
   }
 }
