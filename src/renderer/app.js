@@ -45,8 +45,17 @@ document.addEventListener('DOMContentLoaded', function() {
     setupForms();
     setupDateInputs();
     
-    // Cargar datos iniciales
-    loadInitialData();
+    // Inicializar servicio Excel ANTES de cargar datos
+    initializeExcelService().then(() => {
+        console.log('📊 Excel inicializado, actualizando interfaz...');
+        updateDashboard();
+        if (currentSection === 'reportes') {
+            loadReportesData();
+        }
+    }).catch(() => {
+        console.log('⚠️ Iniciando con datos por defecto');
+        loadInitialData();
+    });
     
     // Inicializar funciones avanzadas
     setTimeout(() => {
@@ -325,7 +334,7 @@ function setupForms() {
 function setupFormReciclaje() {
     if (!elements.formReciclaje) return;
     
-    elements.formReciclaje.addEventListener('submit', function (e) {
+    elements.formReciclaje.addEventListener('submit', async function (e) {
         e.preventDefault();
 
         const peso = document.getElementById('peso-reciclaje').value;
@@ -353,30 +362,35 @@ function setupFormReciclaje() {
             Observaciones: observaciones || ''
         };
         
-        registrosData.push(nuevoRegistro);
+        const success = await saveNewRegistro(nuevoRegistro);
         
-        elements.alertaReciclaje.textContent = '¡Registro guardado con éxito!';
-        elements.alertaReciclaje.className = 'text-green-500 text-sm mt-2 text-center font-semibold';
+        if (success) {
+            elements.alertaReciclaje.textContent = ('Éxito', `Registro creado exitosamente con ID: ${nuevoRegistro.ID}`, 'success');
+            elements.alertaReciclaje.className = 'text-green-500 text-sm mt-2 text-center font-semibold';
+         
+            // Limpiar formulario
+            elements.formReciclaje.reset();
+            setupDateInputs();
         
-        showToast('Éxito', `Registro creado exitosamente con ID: ${nuevoRegistro.ID}`, 'success');
-        
-        // Limpiar formulario
-        elements.formReciclaje.reset();
-        setupDateInputs();
-        
-        // Actualizar dashboard
-        updateDashboard();
-        
-        // Limpiar mensaje después de unos segundos
-        setTimeout(() => {
+            // Actualizar dashboard
+            updateDashboard();
+            mostrarNotificacionNuevoRegistro(nuevoRegistro);
+        } else {
+            elements.alertaReciclaje.textContent = 'Error al guardar el registro';
+            elements.alertaReciclaje.className = 'text-red-500 text-sm mt-2 text-center font-semibold';
+            showToast('Error', 'No se pudo guardar el registro', 'error');
+        }
+
+         // Limpiar mensaje después de unos segundos
+         setTimeout(() => {
             elements.alertaReciclaje.textContent = '';
             elements.alertaReciclaje.className = 'text-sm mt-2 text-center';
-        }, 3000);
+         }, 3000);
     });
 }
 
 /**
- * Configurar formulario de salida (ACTUALIZADO PARA GRUPOS)
+ * Configurar formulario de salida para grupos
  */
 function setupFormSalida() {
     const formSalida = document.getElementById('form-salida');
@@ -475,20 +489,27 @@ async function loadInitialData() {
 }
 
 /**
- * Actualizar dashboard con estadísticas
+ * Actualizar dashboard con estadísticas POR TIPO 
  */
 function updateDashboard() {
+    console.log('📊 Actualizando dashboard con pesos por tipo...');
+    
+    // Calcular estadísticas generales 
     const registrosActivos = registrosData.filter(r => r.Estado === 'Activo');
     const registrosDespachados = registrosData.filter(r => r.Estado === 'Despachado');
     const pesoTotal = registrosData.reduce((sum, r) => sum + r.Peso, 0);
     
-    // Dashboard principal
+    // Actualizar estadísticas generales (segunda fila)
     if (elements.dashRegistros) elements.dashRegistros.textContent = registrosActivos.length;
     if (elements.dashPeso) elements.dashPeso.textContent = `${pesoTotal.toFixed(1)} kg`;
     if (elements.dashDespachados) elements.dashDespachados.textContent = registrosDespachados.length;
     if (elements.dashSalidas) elements.dashSalidas.textContent = salidasData.length;
     
-    console.log('📊 Dashboard actualizado');
+    // Actualizar pesos por tipo de material
+    updateReportesPorTipo(); 
+    actualizarReportes();
+    
+    console.log('✅ Dashboard actualizado con pesos por tipo');
 }
 
 /**
@@ -541,7 +562,7 @@ function createHistorialRow(registro) {
 }
 
 // ===========================================
-// FUNCIONES DE AGRUPACIÓN POR TIPO (NUEVA FUNCIONALIDAD)
+// FUNCIONES DE AGRUPACIÓN POR TIPO 
 // ===========================================
 
 /**
@@ -674,7 +695,7 @@ function createGrupoDisponibleItem(tipo, grupo) {
 }
 
 /**
- * Crear elemento de registro despachado (solo para referencia)
+ * Crear elemento de registro despachado 
  */
 function createRegistroDespachado(registro) {
     const div = document.createElement('div');
@@ -747,7 +768,7 @@ function getSelectedRegistros() {
 }
 
 /**
- * Cargar datos de salidas (VERSIÓN ACTUALIZADA PARA GRUPOS)
+ * Cargar datos de salidas (ACTUALIZADA PARA GRUPOS)
  */
 function loadSalidasData() {
     console.log('📦 Cargando salidas...');
@@ -762,7 +783,7 @@ function loadSalidasData() {
         tablaSalidas.appendChild(row);
     });
     
-    // Cargar registros disponibles agrupados (NUEVO)
+    // Cargar registros disponibles agrupados 
     loadRegistrosDisponiblesAgrupados();
     setupDateTimeInputs();
 }
@@ -905,11 +926,11 @@ function cerrarModalDetalle() {
 }
 
 // ===========================================
-// MANEJO DE EVENTOS (ACTUALIZADO PARA GRUPOS)
+// MANEJO DE EVENTOS 
 // ===========================================
 
 /**
- * Manejar envío del formulario de salida (ACTUALIZADO PARA GRUPOS)
+ * Manejar envío del formulario de salida 
  */
 async function handleSalidaSubmit(e) {
     e.preventDefault();
@@ -943,7 +964,7 @@ async function handleSalidaSubmit(e) {
  */
 async function procesarSalidaGrupal(registrosSeleccionados, gruposSeleccionados) {
     showLoading('Procesando salida grupal...');
-    
+
     try {
         const salidaData = {
             registrosIds: registrosSeleccionados,
@@ -952,56 +973,50 @@ async function procesarSalidaGrupal(registrosSeleccionados, gruposSeleccionados)
             personaAutoriza: document.getElementById('persona-autoriza').value,
             observaciones: document.getElementById('observaciones-salida').value
         };
-        
+
         console.log('📤 Procesando salida grupal:', salidaData);
-        
-        // Simular procesamiento
-        setTimeout(() => {
-            // Actualizar estado de registros
-            registrosSeleccionados.forEach(id => {
-                const registro = registrosData.find(r => r.ID === id);
-                if (registro) {
-                    registro.Estado = 'Despachado';
-                }
-            });
-            
-            // Crear registro de salida con información de grupos
-            const nuevaSalida = {
-                ID_Salida: salidasData.length + 1,
-                Fecha_Despacho: salidaData.fechaSalida,
-                Persona_Autoriza: salidaData.personaAutoriza,
-                Registros_Procesados: registrosSeleccionados.length,
-                Grupos_Procesados: gruposSeleccionados.length,
-                Tipos_Despachados: gruposSeleccionados.map(g => g.tipo).join(', '),
-                Observaciones: salidaData.observaciones,
-                Detalle_Grupos: gruposSeleccionados
-            };
-            
-            salidasData.push(nuevaSalida);
-            
+
+        // Crear registro de salida con información de grupos
+        const nuevaSalida = {
+            ID_Salida: salidasData.length + 1,
+            Fecha_Despacho: salidaData.fechaSalida,
+            Persona_Autoriza: salidaData.personaAutoriza,
+            Registros_Procesados: registrosSeleccionados.length,
+            Grupos_Procesados: gruposSeleccionados.length,
+            Tipos_Despachados: gruposSeleccionados.map(g => g.tipo).join(', '),
+            Observaciones: salidaData.observaciones,
+            Detalle_Grupos: gruposSeleccionados
+        };
+
+        // Procesar salida completa (memoria + Excel)
+        const success = await procesarSalidaCompleta(registrosSeleccionados, nuevaSalida);
+        if (success) {
             hideLoading();
-            
+
             // Mensaje de éxito detallado
             const successMessage = `Salida procesada exitosamente:\n` +
                 `• ${gruposSeleccionados.length} grupos despachados\n` +
                 `• ${registrosSeleccionados.length} registros totales\n` +
-                `• Tipos: ${gruposSeleccionados.map(g => g.tipo).join(', ')}`;
-            
+                `• Tipos: ${gruposSeleccionados.map(g => g.tipo).join(', ')}\n` +
+                `• Guardado en Excel: ✓`;
+
             showToast('Éxito', successMessage, 'success');
-            
+
             // Actualizar datos
             updateDashboard();
             loadSalidasData();
-            
+
             // Limpiar formulario
             document.getElementById('form-salida').reset();
             setupDateTimeInputs();
-        }, 2000);
-        
+        } else {
+            hideLoading();
+            showToast('Error', 'No se pudo procesar la salida completa', 'error');
+        }
     } catch (error) {
         hideLoading();
-        console.error('❌ Error procesando salida grupal:', error);
-        showToast('Error', 'No se pudo procesar la salida grupal', 'error');
+        console.error('❌ Error al procesar salida grupal:', error);
+        showToast('Error', 'Ocurrió un error inesperado al procesar la salida', 'error');
     }
 }
 
@@ -1009,12 +1024,12 @@ async function procesarSalidaGrupal(registrosSeleccionados, gruposSeleccionados)
  * Cargar datos para reportes
  */
 function loadReportesData() {
-    console.log('📊 Cargando datos de reportes');
+    console.log('📊 Cargando datos de reportes con pesos por tipo');
     
-    // Calcular estadísticas
+    // Calcular estadísticas generales (mantener las del dashboard si existen)
     const stats = calculateAdvancedStats();
     
-    // Actualizar estadísticas
+    // Actualizar estadísticas tradicionales si existen en reportes
     const statPromedioElem = document.getElementById('stat-promedio-peso');
     const statRegistrosMesElem = document.getElementById('stat-registros-mes');
     const statSalidasMesElem = document.getElementById('stat-salidas-mes');
@@ -1027,6 +1042,9 @@ function loadReportesData() {
         const eficiencia = stats.totalRegistros > 0 ? ((stats.registrosDespachados / stats.totalRegistros) * 100).toFixed(1) : 0;
         statEficienciaElem.textContent = `${eficiencia}%`;
     }
+    
+    // NUEVO: Actualizar tarjetas de peso por tipo en reportes
+    updateReportesPorTipo();
     
     // Crear gráficos simples
     setTimeout(createSimpleCharts, 100);
@@ -1370,12 +1388,209 @@ function calculateAdvancedStats() {
     return stats;
 }
 
+/**
+ * Actualizar tarjetas de peso por tipo en reportes (NUEVA FUNCIÓN)
+ */
+function updateReportesPorTipo() {
+    const pesosPorTipo = calculatePesosPorTipoReportes();
+    
+    // Actualizar cada tarjeta de tipo en reportes
+    const reportPesoPlastico = document.getElementById('report-peso-plastico');
+    const reportPesoCarton = document.getElementById('report-peso-carton');
+    const reportPesoVidrio = document.getElementById('report-peso-vidrio');
+    const reportPesoMetal = document.getElementById('report-peso-metal');
+    const reportPesoOtros = document.getElementById('report-peso-otros');
+    
+    if (reportPesoPlastico) reportPesoPlastico.textContent = `${pesosPorTipo['Plástico'].toFixed(1)} kg`;
+    if (reportPesoCarton) reportPesoCarton.textContent = `${pesosPorTipo['Cartón'].toFixed(1)} kg`;
+    if (reportPesoVidrio) reportPesoVidrio.textContent = `${pesosPorTipo['Vidrio'].toFixed(1)} kg`;
+    if (reportPesoMetal) reportPesoMetal.textContent = `${pesosPorTipo['Metal'].toFixed(1)} kg`;
+    if (reportPesoOtros) reportPesoOtros.textContent = `${pesosPorTipo['Otros'].toFixed(1)} kg`;
+    
+    console.log('📊 Tarjetas de reportes por tipo actualizadas');
+}
+
+/**
+ * Calcular peso total por tipo para reportes (NUEVA FUNCIÓN)
+ */
+function calculatePesosPorTipoReportes() {
+    const pesosPorTipo = {
+        'Plástico': 0,
+        'Cartón': 0,
+        'Vidrio': 0,
+        'Metal': 0,
+        'Otros': 0
+    };
+    
+    // Sumar pesos de todos los registros (activos y despachados)
+    registrosData.forEach(registro => {
+        if (pesosPorTipo.hasOwnProperty(registro.Tipo)) {
+            pesosPorTipo[registro.Tipo] += registro.Peso;
+        }
+    });
+    
+    return pesosPorTipo;
+}
+
+/**
+ * Mostrar detalles de un tipo específico en reportes (NUEVA FUNCIÓN)
+ */
+function mostrarDetallesTipoReporte(tipo) {
+    const registrosTipo = registrosData.filter(r => r.Tipo === tipo);
+    
+    if (registrosTipo.length === 0) {
+        showToast('Información', `No hay registros de ${tipo}`, 'info');
+        return;
+    }
+    
+    // Calcular estadísticas del tipo
+    const totalPeso = registrosTipo.reduce((sum, r) => sum + r.Peso, 0);
+    const registrosActivos = registrosTipo.filter(r => r.Estado === 'Activo').length;
+    const registrosDespachados = registrosTipo.filter(r => r.Estado === 'Despachado').length;
+    const personas = [...new Set(registrosTipo.map(r => r.Persona))];
+    
+    // Calcular estadísticas por persona
+    const estadisticasPorPersona = {};
+    registrosTipo.forEach(registro => {
+        if (!estadisticasPorPersona[registro.Persona]) {
+            estadisticasPorPersona[registro.Persona] = {
+                cantidad: 0,
+                peso: 0,
+                activos: 0,
+                despachados: 0
+            };
+        }
+        estadisticasPorPersona[registro.Persona].cantidad++;
+        estadisticasPorPersona[registro.Persona].peso += registro.Peso;
+        if (registro.Estado === 'Activo') {
+            estadisticasPorPersona[registro.Persona].activos++;
+        } else {
+            estadisticasPorPersona[registro.Persona].despachados++;
+        }
+    });
+    
+    let contenidoHTML = `
+        <div class="space-y-6">
+            <!-- Resumen General -->
+            <div class="bg-gradient-to-r from-gray-700 to-gray-800 p-6 rounded-lg border-l-4 border-blue-500">
+                <h4 class="text-xl font-bold text-white mb-4 flex items-center">
+                    <span class="text-3xl mr-3">${getTipoIcon(tipo)}</span>
+                    Reporte Completo: ${tipo}
+                </h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div class="bg-blue-600 p-3 rounded-lg">
+                        <div class="text-2xl font-bold text-white">${registrosTipo.length}</div>
+                        <div class="text-blue-100 text-sm">Total Registros</div>
+                    </div>
+                    <div class="bg-green-600 p-3 rounded-lg">
+                        <div class="text-2xl font-bold text-white">${totalPeso.toFixed(1)}kg</div>
+                        <div class="text-green-100 text-sm">Peso Total</div>
+                    </div>
+                    <div class="bg-yellow-600 p-3 rounded-lg">
+                        <div class="text-2xl font-bold text-white">${registrosActivos}</div>
+                        <div class="text-yellow-100 text-sm">Activos</div>
+                    </div>
+                    <div class="bg-red-600 p-3 rounded-lg">
+                        <div class="text-2xl font-bold text-white">${registrosDespachados}</div>
+                        <div class="text-red-100 text-sm">Despachados</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Estadísticas por Persona -->
+            <div class="bg-gray-700 p-6 rounded-lg">
+                <h5 class="text-lg font-bold text-white mb-4 flex items-center">
+                    <i class="fas fa-users mr-2 text-blue-400"></i>
+                    Estadísticas por Persona
+                </h5>
+                <div class="grid gap-3">
+    `;
+    
+    Object.entries(estadisticasPorPersona)
+        .sort((a, b) => b[1].peso - a[1].peso)
+        .forEach(([persona, stats]) => {
+            const porcentajePeso = totalPeso > 0 ? ((stats.peso / totalPeso) * 100).toFixed(1) : 0;
+            contenidoHTML += `
+                <div class="bg-gray-800 p-4 rounded-lg border-l-4 border-green-500">
+                    <div class="flex justify-between items-center">
+                        <div class="flex-1">
+                            <h6 class="font-semibold text-white">${persona}</h6>
+                            <div class="text-sm text-gray-300 mt-1">
+                                ${stats.cantidad} registros • ${stats.peso.toFixed(1)}kg (${porcentajePeso}%)
+                            </div>
+                        </div>
+                        <div class="text-right text-sm">
+                            <div class="text-green-400">✓ ${stats.activos} activos</div>
+                            <div class="text-gray-400">📦 ${stats.despachados} despachados</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    
+    contenidoHTML += `
+                </div>
+            </div>
+            
+            <!-- Historial Reciente -->
+            <div class="bg-gray-700 p-6 rounded-lg">
+                <h5 class="text-lg font-bold text-white mb-4 flex items-center">
+                    <i class="fas fa-clock mr-2 text-yellow-400"></i>
+                    Últimos 10 Registros
+                </h5>
+                <div class="space-y-2 max-h-64 overflow-y-auto">
+    `;
+    
+    // Mostrar últimos 10 registros ordenados por fecha
+    const ultimosRegistros = registrosTipo
+        .sort((a, b) => new Date(b.Fecha_Registro) - new Date(a.Fecha_Registro))
+        .slice(0, 10);
+    
+    ultimosRegistros.forEach(registro => {
+        const estadoColor = registro.Estado === 'Activo' ? 'text-green-400' : 'text-gray-400';
+        const estadoIcon = registro.Estado === 'Activo' ? '🟢' : '⚪';
+        contenidoHTML += `
+            <div class="flex justify-between items-center p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors">
+                <div class="flex items-center space-x-3">
+                    <span class="font-mono text-blue-400">#${registro.ID}</span>
+                    <span class="text-yellow-400 font-semibold">${registro.Peso}kg</span>
+                    <span class="text-gray-300">${registro.Persona}</span>
+                </div>
+                <div class="text-right">
+                    <div class="text-gray-400 text-sm">${formatDateTime(registro.Fecha_Registro)}</div>
+                    <div class="${estadoColor} text-sm flex items-center">
+                        ${estadoIcon} ${registro.Estado}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    contenidoHTML += `
+                </div>
+            </div>
+        </div>
+    `;
+    
+    mostrarModalDetalle(`📊 Reporte Detallado: ${tipo}`, contenidoHTML);
+}
+
+/**
+ * Actualizar reportes cuando se modifiquen los datos (NUEVA FUNCIÓN)
+ */
+function actualizarReportes() {
+    // Solo actualizar si estamos en la sección de reportes
+    if (currentSection === 'reportes') {
+        updateReportesPorTipo();
+    }
+}
+
 // ===========================================
 // NOTIFICACIONES Y MODALES
 // ===========================================
 
 /**
- * Mostrar loading (versión Tailwind compatible)
+ * Mostrar loading 
  */
 function showLoading(message = 'Procesando...') {
     let loadingModal = document.getElementById('loading-modal');
@@ -1395,89 +1610,6 @@ function showLoading(message = 'Procesando...') {
     } else {
         document.getElementById('loading-message').textContent = message;
         loadingModal.classList.remove('hidden');
-    }
-}
-
-/**
- * Ocultar loading
- */
-function hideLoading() {
-    const loadingModal = document.getElementById('loading-modal');
-    if (loadingModal) {
-        loadingModal.classList.add('hidden');
-    }
-}
-
-/**
- * Mostrar toast notification (versión Tailwind)
- */
-function showToast(title, message, type = 'info') {
-    let toastContainer = document.getElementById('toast-container');
-    
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.id = 'toast-container';
-        toastContainer.className = 'fixed top-4 right-4 z-50 space-y-2';
-        document.body.appendChild(toastContainer);
-    }
-    
-    const toast = document.createElement('div');
-    const toastId = 'toast-' + Date.now();
-    toast.id = toastId;
-    
-    const iconClasses = {
-        success: 'text-green-400 fas fa-check-circle',
-        error: 'text-red-400 fas fa-exclamation-circle',
-        warning: 'text-yellow-400 fas fa-exclamation-triangle',
-        info: 'text-blue-400 fas fa-info-circle'
-    };
-    
-    toast.className = `max-w-sm w-full bg-gray-800 border-l-4 border-${type === 'success' ? 'green' : type === 'error' ? 'red' : type === 'warning' ? 'yellow' : 'blue'}-500 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full`;
-    
-    toast.innerHTML = `
-        <div class="p-4">
-            <div class="flex items-start">
-                <div class="flex-shrink-0">
-                    <i class="${iconClasses[type] || iconClasses.info}"></i>
-                </div>
-                <div class="ml-3 w-0 flex-1">
-                    <p class="text-sm font-medium text-white">${title}</p>
-                    <p class="mt-1 text-sm text-gray-300">${message}</p>
-                </div>
-                <div class="ml-4 flex-shrink-0 flex">
-                    <button onclick="closeToast('${toastId}')" class="inline-flex text-gray-400 hover:text-gray-200 focus:outline-none transition-colors">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    toastContainer.appendChild(toast);
-    
-    // Animar entrada
-    setTimeout(() => {
-        toast.classList.remove('translate-x-full');
-        toast.classList.add('translate-x-0');
-    }, 100);
-    
-    // Auto-cerrar después de 5 segundos
-    setTimeout(() => {
-        closeToast(toastId);
-    }, 5000);
-}
-
-/**
- * Cerrar toast específico
- */
-function closeToast(toastId) {
-    const toast = document.getElementById(toastId);
-    if (toast) {
-        toast.classList.remove('translate-x-0');
-        toast.classList.add('translate-x-full');
-        setTimeout(() => {
-            toast.remove();
-        }, 300);
     }
 }
 
@@ -1587,6 +1719,8 @@ function setupKeyboardShortcuts() {
         }
     });
 }
+
+
 
 // ===========================================
 // BÚSQUEDA GLOBAL
@@ -1713,66 +1847,7 @@ function closeGlobalSearch() {
 // ===========================================
 
 /**
- * Mostrar confirmación antes de acciones importantes
- */
-function showConfirmation(title, message, callback) {
-    let confirmModal = document.getElementById('confirm-modal');
-    
-    if (!confirmModal) {
-        confirmModal = document.createElement('div');
-        confirmModal.id = 'confirm-modal';
-        confirmModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden';
-        confirmModal.innerHTML = `
-            <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-                <div class="mb-4">
-                    <h3 id="confirm-title" class="text-lg font-semibold text-white mb-2">Confirmación</h3>
-                    <p id="confirm-message" class="text-gray-300 whitespace-pre-line">¿Estás seguro de realizar esta acción?</p>
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button id="confirm-cancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors">
-                        Cancelar
-                    </button>
-                    <button id="confirm-accept" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition-colors">
-                        Confirmar
-                    </button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(confirmModal);
-        
-        // Event listeners
-        confirmModal.querySelector('#confirm-cancel').addEventListener('click', () => {
-            confirmModal.classList.add('hidden');
-        });
-        
-        // Cerrar al hacer clic fuera
-        confirmModal.addEventListener('click', (e) => {
-            if (e.target === confirmModal) {
-                confirmModal.classList.add('hidden');
-            }
-        });
-    }
-    
-    // Actualizar contenido
-    document.getElementById('confirm-title').textContent = title;
-    document.getElementById('confirm-message').textContent = message;
-    
-    // Configurar callback
-    const acceptBtn = document.getElementById('confirm-accept');
-    const newAcceptBtn = acceptBtn.cloneNode(true);
-    acceptBtn.parentNode.replaceChild(newAcceptBtn, acceptBtn);
-    
-    newAcceptBtn.addEventListener('click', () => {
-        confirmModal.classList.add('hidden');
-        callback();
-    });
-    
-    // Mostrar modal
-    confirmModal.classList.remove('hidden');
-}
-
-/**
- * Inicializar funciones avanzadas (ACTUALIZADO)
+ * Inicializar funciones avanzadas 
  */
 function initializeAdvancedFeatures() {
     console.log('🚀 Inicializando funciones avanzadas...');
@@ -1828,7 +1903,7 @@ function initializeGroupingFeatures() {
 }
 
 // ===========================================
-// FUNCIONES DE ELECTRON (PARA IMPLEMENTAR)
+// FUNCIONES DE ELECTRON 
 // ===========================================
 
 /**
@@ -1878,6 +1953,7 @@ window.closeGlobalSearch = closeGlobalSearch;
 window.showConfirmation = showConfirmation;
 window.navigateToSection = navigateToSection;
 window.cerrarModalDetalle = cerrarModalDetalle;
+window.mostrarDetallesTipoReporte = mostrarDetallesTipoReporte;
 
 // ===========================================
 // MANEJO DE ERRORES GLOBAL

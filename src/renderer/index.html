@@ -351,23 +351,61 @@
           </div>
         </div>
         
-        <!-- Estadísticas Resumidas -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div class="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-lg text-center text-white">
-            <h3 id="stat-promedio-peso" class="text-2xl font-bold">0 kg</h3>
-            <p class="text-green-100">Peso Promedio</p>
+         <!-- Estadísticas por Tipo de Reciclaje -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <!-- Plástico -->
+          <div class="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-lg text-center text-white transform hover:scale-105 transition-all duration-200 cursor-pointer" onclick="mostrarDetallesTipoReporte('Plástico')">
+            <div class="flex items-center justify-center mb-2">
+              <span class="text-3xl mr-2">♻️</span>
+              <div>
+                <h3 id="report-peso-plastico" class="text-2xl font-bold">0 kg</h3>
+                <p class="text-green-100 text-sm font-medium">Plástico</p>
+              </div>
+            </div>
           </div>
-          <div class="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-lg text-center text-white">
-            <h3 id="stat-registros-mes" class="text-2xl font-bold">0</h3>
-            <p class="text-blue-100">Registros Este Mes</p>
+          
+          <!-- Cartón -->
+          <div class="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-lg text-center text-white transform hover:scale-105 transition-all duration-200 cursor-pointer" onclick="mostrarDetallesTipoReporte('Cartón')">
+            <div class="flex items-center justify-center mb-2">
+              <span class="text-3xl mr-2">📦</span>
+              <div>
+                <h3 id="report-peso-carton" class="text-2xl font-bold">0 kg</h3>
+                <p class="text-blue-100 text-sm font-medium">Cartón</p>
+              </div>
+            </div>
           </div>
-          <div class="bg-gradient-to-r from-yellow-500 to-yellow-600 p-4 rounded-lg text-center text-white">
-            <h3 id="stat-salidas-mes" class="text-2xl font-bold">0</h3>
-            <p class="text-yellow-100">Salidas Este Mes</p>
+          
+          <!-- Vidrio -->
+          <div class="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-lg text-center text-white transform hover:scale-105 transition-all duration-200 cursor-pointer" onclick="mostrarDetallesTipoReporte('Vidrio')">
+            <div class="flex items-center justify-center mb-2">
+              <span class="text-3xl mr-2">🍾</span>
+              <div>
+                <h3 id="report-peso-vidrio" class="text-2xl font-bold">0 kg</h3>
+                <p class="text-purple-100 text-sm font-medium">Vidrio</p>
+              </div>
+            </div>
           </div>
-          <div class="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-lg text-center text-white">
-            <h3 id="stat-eficiencia" class="text-2xl font-bold">0%</h3>
-            <p class="text-purple-100">Eficiencia</p>
+          
+          <!-- Metal -->
+          <div class="bg-gradient-to-r from-orange-500 to-orange-600 p-4 rounded-lg text-center text-white transform hover:scale-105 transition-all duration-200 cursor-pointer" onclick="mostrarDetallesTipoReporte('Metal')">
+            <div class="flex items-center justify-center mb-2">
+              <span class="text-3xl mr-2">🔧</span>
+              <div>
+                <h3 id="report-peso-metal" class="text-2xl font-bold">0 kg</h3>
+                <p class="text-orange-100 text-sm font-medium">Metal</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Otros -->
+          <div class="bg-gradient-to-r from-gray-500 to-gray-600 p-4 rounded-lg text-center text-white transform hover:scale-105 transition-all duration-200 cursor-pointer" onclick="mostrarDetallesTipoReporte('Otros')">
+            <div class="flex items-center justify-center mb-2">
+              <span class="text-3xl mr-2">📄</span>
+              <div>
+                <h3 id="report-peso-otros" class="text-2xl font-bold">0 kg</h3>
+                <p class="text-gray-100 text-sm font-medium">Otros</p>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -385,7 +423,8 @@
       </section>
     </main>
   </div>
-
+  <script src="notifications.js"></script>
+  <script src="/src/services/excelService.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
