@@ -437,4 +437,63 @@ window.mostrarModalDetalle = mostrarModalDetalle;
 window.cerrarModalDetalle = cerrarModalDetalle;
 window.showEcoTrakNotification = showEcoTrakNotification;
 
+/**
+ * Mostrar notificación de nuevo registro con detalles
+ */
+function mostrarNotificacionNuevoRegistro(registro) {
+    const tipoIcon = getTipoIcon(registro.Tipo);
+    const mensaje = `${tipoIcon} ${registro.Tipo} - ${registro.Peso}kg registrado por ${registro.Persona}`;
+    
+    showEcoTrakNotification(
+        'success',
+        'Nuevo Registro Creado',
+        mensaje,
+        {
+            ecoType: 'recycle',
+            duration: 4000
+        }
+    );
+}
+
+/**
+ * Obtener icono por tipo de material (helper para notificaciones)
+ */
+function getTipoIcon(tipo) {
+    const icons = {
+        'Plástico': '♻️',
+        'Cartón': '📦', 
+        'Vidrio': '🍾',
+        'Metal': '🔧',
+        'Otros': '📄'
+    };
+    return icons[tipo] || '📄';
+}
+
+// Exportar la nueva función
+window.mostrarNotificacionNuevoRegistro = mostrarNotificacionNuevoRegistro;
+window.getTipoIcon = getTipoIcon;
+
+console.log('✨ Funciones adicionales de EcoTrak agregadas');
+
+/**
+ * Funciones helper faltantes
+ */
+function navigateToSection(section) {
+    if (typeof window.navigateToSection === 'function') {
+        window.navigateToSection(section);
+    } else if (window.app && window.app.navigateToSection) {
+        window.app.navigateToSection(section);
+    }
+}
+
+function setupDateInputs() {
+    if (typeof window.setupDateInputs === 'function') {
+        window.setupDateInputs();
+    }
+}
+
+// Exportar funciones helper
+window.navigateToSection = navigateToSection;
+window.setupDateInputs = setupDateInputs;
+
 console.log('✨ Sistema de notificaciones mejorado cargado para EcoTrak');

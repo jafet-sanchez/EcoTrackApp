@@ -30,9 +30,10 @@ function createMainWindow() {
     title: APP_CONFIG.title,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: true,
-      webSecurity: false // Para desarrollo local
+      contextIsolation: true,
+      enableRemoteModule: false,
+      webSecurity: false,
+      preload: path.join(__dirname, '../services/preload.js')
     },
     icon: path.join(__dirname, '../../assets/icons/icon2.ico'),
     show: false, // No mostrar hasta que esté listo
@@ -40,6 +41,16 @@ function createMainWindow() {
     frame: true,
     backgroundColor: '#f0fdf4' // Color de fondo verde suave
   });
+
+  const preloadPath = path.join(__dirname, '../preload.js');
+  console.log('🔍 Ruta preload completa:', preloadPath);
+
+  const fs = require('fs');
+  console.log('📁 Archivo preload existe:', fs.existsSync(preloadPath));
+
+  if (!fs.existsSync(preloadPath)) {
+    console.error('❌ ARCHIVO PRELOAD NO ENCONTRADO en:', preloadPath);
+  } 
 
   // Cargar la interfaz
   const htmlPath = path.join(__dirname, '../renderer/index.html');
@@ -198,6 +209,13 @@ function setupMenu() {
     {
       label: 'Ver',
       submenu: [
+        {
+          label: 'Abrir DevTools',
+            accelerator: 'F12',
+            click: () => {
+                mainWindow.webContents.openDevTools();
+              }
+        },
         {
           label: 'Recargar',
           accelerator: 'CmdOrCtrl+R',

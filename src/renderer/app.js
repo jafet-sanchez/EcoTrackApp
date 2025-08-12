@@ -1,3 +1,9 @@
+console.log('🔍 electronAPI disponible:', !!window.electronAPI);
+if (window.electronAPI) {
+    console.log('✅ electronAPI funciones:', Object.keys(window.electronAPI));
+} else {
+    console.error('❌ electronAPI NO DISPONIBLE');
+}
 // ===========================================
 // VARIABLES GLOBALES
 // ===========================================
@@ -45,17 +51,8 @@ document.addEventListener('DOMContentLoaded', function() {
     setupForms();
     setupDateInputs();
     
-    // Inicializar servicio Excel ANTES de cargar datos
-    initializeExcelService().then(() => {
-        console.log('📊 Excel inicializado, actualizando interfaz...');
-        updateDashboard();
-        if (currentSection === 'reportes') {
-            loadReportesData();
-        }
-    }).catch(() => {
-        console.log('⚠️ Iniciando con datos por defecto');
-        loadInitialData();
-    });
+    if (!window.registrosData) window.registrosData = [];
+    if (!window.salidasData) window.salidasData = [];
     
     // Inicializar funciones avanzadas
     setTimeout(() => {
@@ -331,9 +328,9 @@ function setupForms() {
 /**
  * Configurar formulario de reciclaje
  */
-function setupFormReciclaje() {
+async function setupFormReciclaje(){
     if (!elements.formReciclaje) return;
-    
+
     elements.formReciclaje.addEventListener('submit', async function (e) {
         e.preventDefault();
 
@@ -365,7 +362,7 @@ function setupFormReciclaje() {
         const success = await saveNewRegistro(nuevoRegistro);
         
         if (success) {
-            elements.alertaReciclaje.textContent = ('Éxito', `Registro creado exitosamente con ID: ${nuevoRegistro.ID}`, 'success');
+            elements.alertaReciclaje.textContent = ('Éxito', `Registro creado exitosamente con ID: ${nuevoRegistro.ID}`, 'Registro exitosamente ');
             elements.alertaReciclaje.className = 'text-green-500 text-sm mt-2 text-center font-semibold';
          
             // Limpiar formulario
@@ -388,6 +385,7 @@ function setupFormReciclaje() {
          }, 3000);
     });
 }
+
 
 /**
  * Configurar formulario de salida para grupos
@@ -1903,59 +1901,6 @@ function initializeGroupingFeatures() {
 }
 
 // ===========================================
-// FUNCIONES DE ELECTRON 
-// ===========================================
-
-/**
- * Crear nueva base de datos
- */
-async function createNewDatabase() {
-    console.log('📁 Crear nueva base de datos');
-    showToast('Info', 'Función de nueva base de datos - Por implementar', 'info');
-}
-
-/**
- * Abrir base de datos existente
- */
-async function openDatabase(filePath) {
-    console.log('📁 Abrir base de datos:', filePath);
-    showToast('Info', `Abrir base de datos: ${filePath} - Por implementar`, 'info');
-}
-
-/**
- * Guardar base de datos
- */
-async function saveDatabase() {
-    console.log('💾 Guardar base de datos');
-    showToast('Info', 'Base de datos guardada automáticamente', 'success');
-}
-
-/**
- * Guardar como nueva base de datos
- */
-async function saveAsDatabase(filePath) {
-    console.log('💾 Guardar como:', filePath);
-    showToast('Info', `Guardar como: ${filePath} - Por implementar`, 'info');
-}
-
-// ===========================================
-// EXPORTAR FUNCIONES GLOBALES
-// ===========================================
-
-// Hacer disponibles las funciones que se llaman desde el HTML
-window.procesarRegistro = procesarRegistro;
-window.clearFilters = clearFilters;
-window.searchRegistros = searchRegistros;
-window.sortTable = sortTable;
-window.calculateAdvancedStats = calculateAdvancedStats;
-window.closeToast = closeToast;
-window.closeGlobalSearch = closeGlobalSearch;
-window.showConfirmation = showConfirmation;
-window.navigateToSection = navigateToSection;
-window.cerrarModalDetalle = cerrarModalDetalle;
-window.mostrarDetallesTipoReporte = mostrarDetallesTipoReporte;
-
-// ===========================================
 // MANEJO DE ERRORES GLOBAL
 // ===========================================
 
@@ -1989,3 +1934,44 @@ console.log('   ✅ Confirmación detallada de despachos');
 console.log('   ✅ Historial de salidas con detalles de grupos');
 console.log('   ✅ Modales de detalles con información completa');
 console.log('🚀 ¡Aplicación lista para usar con agrupación!');
+
+// ===========================================
+// INICIALIZAR SERVICIO EXCEL AL CARGAR
+// ===========================================
+
+// Usar setTimeout para asegurar que todo esté cargado
+setTimeout(() => {
+    console.log('📊 Inicializando servicio Excel...');
+    
+    if (typeof window.initializeExcelService === 'function') {
+        window.initializeExcelService()
+            .then(() => {
+                console.log('✅ Servicio Excel inicializado correctamente');
+                updateDashboard();
+                if (currentSection === 'reportes') {
+                    loadReportesData();
+                }
+            })
+            .catch((error) => {
+                console.error('❌ Error inicializando servicio Excel:', error);
+                showToast('Advertencia', 'Excel no disponible, trabajando en modo memoria', 'warning');
+                loadInitialData();
+            });
+    } else {
+        console.warn('⚠️ Función initializeExcelService no encontrada');
+        console.warn('   Cargando datos por defecto...');
+        loadInitialData();
+    }
+}, 1000); // Esperar 1 segundo para que todo se cargue
+
+// ===========================================
+// HACER FUNCIONES GLOBALES PARA HTML
+// ===========================================
+
+// Funciones que el HTML necesita acceder
+window.navigateToSection = navigateToSection;
+window.setupDateInputs = setupDateInputs;
+window.clearFilters = clearFilters;
+window.sortTable = sortTable;
+window.procesarRegistro = procesarRegistro;
+window.mostrarDetallesTipoReporte = mostrarDetallesTipoReporte;
