@@ -14,6 +14,14 @@ let salidasData = [];
 let currentPage = 1;
 const itemsPerPage = 10;
 
+function getNextRegistroId() {
+    if (registrosData.length === 0) return 1;
+    
+    // Encontrar el ID máximo actual
+    const maxId = Math.max(...registrosData.map(r => r.ID || 0));
+    return maxId + 1;
+}
+
 // Referencias a elementos del DOM
 const elements = {
     // Navegación
@@ -52,8 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupDateInputs();
     
     if (!window.registrosData) window.registrosData = [];
-    if (!window.salidasData) window.salidasData = [];
-    
+    if (!window.salidasData) window.salidasData = [];    
     // Inicializar funciones avanzadas
     setTimeout(() => {
         initializeAdvancedFeatures();
@@ -350,7 +357,7 @@ async function setupFormReciclaje(){
 
         // Crear nuevo registro
         const nuevoRegistro = {
-            ID: registrosData.length + 1,
+            ID: getNextRegistroId(),
             Tipo: tipo,
             Peso: parseFloat(peso),
             Fecha_Registro: fecha + 'T' + new Date().toTimeString().slice(0,5),
@@ -362,6 +369,19 @@ async function setupFormReciclaje(){
         const success = await saveNewRegistro(nuevoRegistro);
         
         if (success) {
+             // Recargar datos desde Excel para asegurar sincronización
+            if (window.electronAPI) {
+                const result = await window.electronAPI.loadDataFromExcel();
+                if (result.success && result.data) {
+                    registrosData.length = 0; // Limpiar array actual
+                    registrosData.push(...(result.data.registros || []));
+                    salidasData.length = 0;
+                    salidasData.push(...(result.data.salidas || []));
+                }
+            } else {
+                // Si no hay Excel, agregar manualmente
+                registrosData.push(nuevoRegistro);
+            }
             elements.alertaReciclaje.textContent = ('Éxito', `Registro creado exitosamente con ID: ${nuevoRegistro.ID}`, 'Registro exitosamente ');
             elements.alertaReciclaje.className = 'text-green-500 text-sm mt-2 text-center font-semibold';
          
@@ -433,58 +453,6 @@ function setupDateTimeInputs() {
 // DATOS Y ESTADÍSTICAS
 // ===========================================
 
-/**
- * Cargar datos iniciales (CON DATOS AGRUPABLES)
- */
-async function loadInitialData() {
-    console.log('📊 Cargando datos iniciales...');
-    
-    try {
-        // Datos de ejemplo que incluyen registros del mismo tipo (Plástico)
-        registrosData = [
-            { ID: 1, Tipo: 'Plástico', Peso: 2.5, Fecha_Registro: '2025-01-08T10:00', Persona: 'Jessi', Estado: 'Despachado' },
-            { ID: 2, Tipo: 'Cartón', Peso: 1.8, Fecha_Registro: '2025-01-08T11:00', Persona: 'Juliana', Estado: 'Activo' },
-            { ID: 3, Tipo: 'Vidrio', Peso: 3.2, Fecha_Registro: '2025-01-07T09:00', Persona: 'Mauricio', Estado: 'Despachado' },
-            { ID: 4, Tipo: 'Metal', Peso: 0.8, Fecha_Registro: '2025-01-06T14:30', Persona: 'Adriana', Estado: 'Activo' },
-            { ID: 5, Tipo: 'Otros', Peso: 1.5, Fecha_Registro: '2025-01-06T16:45', Persona: 'Jessi', Estado: 'Despachado' },
-            { ID: 6, Tipo: 'Plástico', Peso: 23.0, Fecha_Registro: '2025-01-08T07:56', Persona: 'Mauricio', Estado: 'Activo' }
-        ];
-        
-        salidasData = [
-            { 
-                ID_Salida: 1, 
-                Fecha_Despacho: '2025-01-08T15:00', 
-                Persona_Autoriza: 'Supervisor A', 
-                Registros_Procesados: 2,
-                Tipos_Despachados: 'Plástico, Vidrio',
-                Grupos_Procesados: 2,
-                Detalle_Grupos: [
-                    {
-                        tipo: 'Plástico',
-                        cantidad: 1,
-                        peso: 2.5,
-                        ids: [1],
-                        personas: ['Jessi']
-                    },
-                    {
-                        tipo: 'Vidrio', 
-                        cantidad: 1,
-                        peso: 3.2,
-                        ids: [3],
-                        personas: ['Mauricio']
-                    }
-                ]
-            }
-        ];
-        
-        updateDashboard();
-        console.log('✅ Datos iniciales cargados');
-        
-    } catch (error) {
-        console.error('❌ Error cargando datos iniciales:', error);
-        showToast('Error', 'Error cargando datos de la base de datos', 'error');
-    }
-}
 
 /**
  * Actualizar dashboard con estadísticas POR TIPO 
@@ -627,7 +595,7 @@ function loadRegistrosDisponiblesAgrupados() {
     if (registrosDespachados.length > 0) {
         const separador = document.createElement('div');
         separador.className = 'border-t border-gray-500 my-3 pt-3';
-        separador.innerHTML = '<h4 class="text-sm text-gray-400 font-semibold mb-2">📦 Registros Despachados (Solo referencia)</h4>';
+        separador.innerHTML = '<h4 class="text-sm text-gray-400 font-semibold mb-2">📦 Registros Despachados</h4>';
         container.appendChild(separador);
         
         registrosDespachados.forEach(registro => {
@@ -796,19 +764,20 @@ function createSalidaRowDetallada(salida) {
     // Información adicional si es salida grupal
     const tiposInfo = salida.Tipos_Despachados || 'Mixto';
     const gruposInfo = salida.Grupos_Procesados ? `(${salida.Grupos_Procesados} grupos)` : '';
-    
+    const registrosProcesados = salida.Registros_Procesados || 0;
+
     row.innerHTML = `
         <td class="py-2"><strong>#${salida.ID_Salida}</strong></td>
         <td class="py-2">${formatDateTime(salida.Fecha_Despacho)}</td>
         <td class="py-2">
-            ${salida.Registros_Procesados} reg. ${gruposInfo}
+            ${registrosProcesados} reg. ${gruposInfo}
             ${tiposInfo !== 'Mixto' ? `<br><small class="text-gray-400">${tiposInfo}</small>` : ''}
         </td>
         <td class="py-2">${salida.Persona_Autoriza}</td>
     `;
     
     // Agregar evento para mostrar detalles al hacer clic
-    if (salida.Detalle_Grupos) {
+    if (salida.Detalle_Grupos && salida.Detalle_Grupos.length > 0) {
         row.title = 'Clic para ver detalles del despacho grupal';
         row.addEventListener('click', () => mostrarDetallesSalida(salida));
     }
@@ -820,7 +789,11 @@ function createSalidaRowDetallada(salida) {
  * Mostrar detalles de una salida grupal
  */
 function mostrarDetallesSalida(salida) {
-    if (!salida.Detalle_Grupos) return;
+     // Verificar que la salida tenga la estructura esperada
+    if (!salida || !salida.ID_Salida) {
+        showToast('Error', 'Datos de salida no válidos', 'error');
+        return;
+    }
     
     let detalleHTML = '<div class="space-y-4">';
     detalleHTML += `
@@ -828,9 +801,9 @@ function mostrarDetallesSalida(salida) {
             <h4 class="font-bold text-xl text-white mb-2">📦 Salida #${salida.ID_Salida}</h4>
             <div class="grid grid-cols-2 gap-4 text-sm">
                 <div><strong class="text-blue-400">Fecha:</strong> ${formatDateTime(salida.Fecha_Despacho)}</div>
-                <div><strong class="text-green-400">Autoriza:</strong> ${salida.Persona_Autoriza}</div>
-                <div><strong class="text-yellow-400">Total Registros:</strong> ${salida.Registros_Procesados}</div>
-                <div><strong class="text-purple-400">Grupos:</strong> ${salida.Grupos_Procesados}</div>
+                <div><strong class="text-green-400">Autoriza:</strong> ${salida.Persona_Autoriza || 'No especificado'}</div>
+                <div><strong class="text-yellow-400">Total Registros:</strong> ${salida.Registros_Procesados || 0}</div>
+                <div><strong class="text-purple-400">Grupos:</strong> ${salida.Grupos_Procesados || 0}</div>
             </div>
     `;
     
@@ -840,41 +813,50 @@ function mostrarDetallesSalida(salida) {
     
     detalleHTML += '</div>';
     
-    detalleHTML += '<h5 class="font-semibold text-lg text-white mb-3">🎯 Grupos Despachados:</h5>';
-    
-    salida.Detalle_Grupos.forEach(grupo => {
-        detalleHTML += `
-            <div class="bg-gray-700 border-l-4 border-blue-500 p-4 rounded-r-lg">
-                <div class="flex justify-between items-center mb-3">
-                    <div class="flex items-center">
-                        <span class="text-2xl mr-3">${getTipoIcon(grupo.tipo)}</span>
-                        <span class="font-bold text-lg text-white">${grupo.tipo}</span>
-                        <span class="ml-3 bg-blue-500 text-white px-2 py-1 rounded-full text-xs">
-                            ${grupo.cantidad} ${grupo.cantidad === 1 ? 'registro' : 'registros'}
-                        </span>
+    // Solo mostrar grupos si existen
+    if (salida.Detalle_Grupos && salida.Detalle_Grupos.length > 0) {
+        detalleHTML += '<h5 class="font-semibold text-lg text-white mb-3">🎯 Grupos Despachados:</h5>';
+        
+        salida.Detalle_Grupos.forEach(grupo => {
+            const personas = grupo.personas && grupo.personas.length > 0 
+                ? grupo.personas.join(', ') 
+                : 'No especificado';
+            
+            detalleHTML += `
+                <div class="bg-gray-700 border-l-4 border-blue-500 p-4 rounded-r-lg">
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="flex items-center">
+                            <span class="text-2xl mr-3">${getTipoIcon(grupo.tipo)}</span>
+                            <span class="font-bold text-lg text-white">${grupo.tipo}</span>
+                            <span class="ml-3 bg-blue-500 text-white px-2 py-1 rounded-full text-xs">
+                                ${grupo.cantidad} ${grupo.cantidad === 1 ? 'registro' : 'registros'}
+                            </span>
+                        </div>
+                        <span class="text-yellow-400 font-bold text-xl">${(grupo.peso || 0).toFixed(1)}kg</span>
                     </div>
-                    <span class="text-yellow-400 font-bold text-xl">${grupo.peso.toFixed(1)}kg</span>
+                    <div class="text-sm text-gray-300 space-y-2">
+                        <div class="flex items-center">
+                            <i class="fas fa-hashtag mr-2 text-green-400"></i>
+                            <strong>Registros:</strong> 
+                            <span class="ml-2">${grupo.ids ? grupo.ids.map(id => `#${id}`).join(', ') : 'No especificado'}</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-users mr-2 text-blue-400"></i>
+                            <strong>Personas:</strong> 
+                            <span class="ml-2">${personas}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="text-sm text-gray-300 space-y-2">
-                    <div class="flex items-center">
-                        <i class="fas fa-hashtag mr-2 text-green-400"></i>
-                        <strong>Registros:</strong> 
-                        <span class="ml-2">${grupo.ids.map(id => `#${id}`).join(', ')}</span>
-                    </div>
-                    <div class="flex items-center">
-                        <i class="fas fa-users mr-2 text-blue-400"></i>
-                        <strong>Personas:</strong> 
-                        <span class="ml-2">${grupo.personas.join(', ')}</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
+            `;
+        });
+    } else {
+        detalleHTML += '<p class="text-gray-400 text-center">No hay detalles de grupos disponibles para esta salida.</p>';
+    }
     
     detalleHTML += '</div>';
     
     // Crear y mostrar modal
-    mostrarModalDetalle('Detalles de Salida Grupal', detalleHTML);
+    mostrarModalDetalle('Detalles de Salida', detalleHTML);
 }
 
 /**
@@ -1940,29 +1922,56 @@ console.log('🚀 ¡Aplicación lista para usar con agrupación!');
 // ===========================================
 
 // Usar setTimeout para asegurar que todo esté cargado
-setTimeout(() => {
+setTimeout(async () => {
     console.log('📊 Inicializando servicio Excel...');
     
     if (typeof window.initializeExcelService === 'function') {
-        window.initializeExcelService()
-            .then(() => {
-                console.log('✅ Servicio Excel inicializado correctamente');
-                updateDashboard();
-                if (currentSection === 'reportes') {
-                    loadReportesData();
+        try {
+            const initialized = await window.initializeExcelService();
+            
+            if (initialized) {
+                console.log('✅ Servicio Excel inicializado');
+                
+                // IMPORTANTE: Cargar datos desde Excel
+                if (window.electronAPI) {
+                    console.log('📂 Cargando datos desde Excel...');
+                    const result = await window.electronAPI.loadDataFromExcel();
+                    
+                    if (result.success && result.data) {
+                        // Limpiar y cargar datos frescos
+                        registrosData.length = 0;
+                        registrosData.push(...(result.data.registros || []));
+                        
+                        salidasData.length = 0;
+                        salidasData.push(...(result.data.salidas || []));
+                        
+                        console.log(`✅ ${registrosData.length} registros cargados desde Excel`);
+                        console.log(`✅ ${salidasData.length} salidas cargadas desde Excel`);
+                        
+                        // Actualizar interfaz
+                        updateDashboard();
+                        
+                        // Si estamos en alguna sección específica, actualizar
+                        if (currentSection === 'historial') {
+                            loadHistorialData();
+                        } else if (currentSection === 'salidas') {
+                            loadSalidasData();
+                        } else if (currentSection === 'reportes') {
+                            loadReportesData();
+                        }
+                    }
                 }
-            })
-            .catch((error) => {
-                console.error('❌ Error inicializando servicio Excel:', error);
-                showToast('Advertencia', 'Excel no disponible, trabajando en modo memoria', 'warning');
-                loadInitialData();
-            });
+            }
+        } catch (error) {
+            console.error('❌ Error inicializando servicio Excel:', error);
+            showToast('Advertencia', 'Excel no disponible, trabajando en modo memoria', 'warning');
+            loadInitialData();
+        }
     } else {
         console.warn('⚠️ Función initializeExcelService no encontrada');
-        console.warn('   Cargando datos por defecto...');
         loadInitialData();
     }
-}, 1000); // Esperar 1 segundo para que todo se cargue
+}, 1000);
 
 // ===========================================
 // HACER FUNCIONES GLOBALES PARA HTML

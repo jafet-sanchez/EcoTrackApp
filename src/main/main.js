@@ -29,10 +29,11 @@ function createMainWindow() {
     minHeight: APP_CONFIG.minHeight,
     title: APP_CONFIG.title,
     webPreferences: {
-      nodeIntegration: true,
+      nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false,
       enableRemoteModule: false,
-      webSecurity: false,
+      webSecurity: true, // DEBE ser true para evitar warnings
       preload: path.join(__dirname, '../services/preload.js')
     },
     icon: path.join(__dirname, '../../assets/icons/icon2.ico'),
@@ -42,7 +43,7 @@ function createMainWindow() {
     backgroundColor: '#f0fdf4' // Color de fondo verde suave
   });
 
-  const preloadPath = path.join(__dirname, '../preload.js');
+  const preloadPath = path.join(__dirname, '../services/preload.js');
   console.log('🔍 Ruta preload completa:', preloadPath);
 
   const fs = require('fs');

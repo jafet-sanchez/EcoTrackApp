@@ -729,68 +729,6 @@ function groupSalidasFromExcel(salidasArray) {
     return Array.from(salidasMap.values());
 }
 
-/**
- * Agregar datos iniciales de ejemplo
- */
-async function addInitialSampleData() {
-    console.log('📝 Agregando datos de ejemplo...');
-    
-    // Usar datos globales de app.js
-    const registros = window.registrosData || [];
-    
-    // Solo agregar si no hay datos cargados desde Excel
-    if (registros.length === 0) {
-        const sampleData = [
-            { ID: 1, Tipo: 'Plástico', Peso: 2.5, Fecha_Registro: '2025-01-08T10:00', Persona: 'Jessi', Estado: 'Despachado' },
-            { ID: 2, Tipo: 'Cartón', Peso: 1.8, Fecha_Registro: '2025-01-08T11:00', Persona: 'Juliana', Estado: 'Activo' },
-            { ID: 3, Tipo: 'Vidrio', Peso: 3.2, Fecha_Registro: '2025-01-07T09:00', Persona: 'Mauricio', Estado: 'Despachado' },
-            { ID: 4, Tipo: 'Metal', Peso: 0.8, Fecha_Registro: '2025-01-06T14:30', Persona: 'Adriana', Estado: 'Activo' },
-            { ID: 5, Tipo: 'Otros', Peso: 1.5, Fecha_Registro: '2025-01-06T16:45', Persona: 'Jessi', Estado: 'Despachado' },
-            { ID: 6, Tipo: 'Plástico', Peso: 23.0, Fecha_Registro: '2025-01-08T07:56', Persona: 'Mauricio', Estado: 'Activo' }
-        ];
-        
-        // Agregar a registrosData globales
-        if (window.registrosData) {
-            window.registrosData.push(...sampleData);
-        }
-        
-        // Guardar cada registro en Excel
-        for (const registro of sampleData) {
-            await saveRegistroToExcel(registro);
-        }
-        
-        console.log('✅ Datos de ejemplo agregados');
-        updateDashboardFromExcel();
-    }
-}
-
-/**
- * Inicializar datos en memoria como fallback
- */
-function initializeInMemoryData() {
-    console.log('💾 Inicializando datos en memoria...');
-    
-    // Usar datos globales de app.js
-    if (window.registrosData) {
-        window.registrosData.length = 0;
-        window.registrosData.push(
-            { ID: 1, Tipo: 'Plástico', Peso: 2.5, Fecha_Registro: '2025-01-08T10:00', Persona: 'Jessi', Estado: 'Despachado' },
-            { ID: 2, Tipo: 'Cartón', Peso: 1.8, Fecha_Registro: '2025-01-08T11:00', Persona: 'Juliana', Estado: 'Activo' },
-            { ID: 3, Tipo: 'Vidrio', Peso: 3.2, Fecha_Registro: '2025-01-07T09:00', Persona: 'Mauricio', Estado: 'Despachado' },
-            { ID: 4, Tipo: 'Metal', Peso: 0.8, Fecha_Registro: '2025-01-06T14:30', Persona: 'Adriana', Estado: 'Activo' },
-            { ID: 5, Tipo: 'Otros', Peso: 1.5, Fecha_Registro: '2025-01-06T16:45', Persona: 'Jessi', Estado: 'Despachado' },
-            { ID: 6, Tipo: 'Plástico', Peso: 23.0, Fecha_Registro: '2025-01-08T07:56', Persona: 'Mauricio', Estado: 'Activo' }
-        );
-    }
-    
-    if (window.salidasData) {
-        window.salidasData.length = 0;
-    }
-    
-    isExcelLoaded = true;
-    console.log('⚠️ Trabajando en modo memoria (sin Excel)');
-}
-
 // ===========================================
 // FUNCIONES DE INTEGRACIÓN
 // ===========================================

@@ -1,6 +1,5 @@
 console.log('🚀 PRELOAD.JS CARGÁNDOSE...');
-const { contextBridge } = require('electron');
-const fs = require('fs');
+const { contextBridge, ipcRenderer } = require('electron');
 const path = require('path');
 const os = require('os');
 
@@ -31,6 +30,16 @@ function getXLSX() {
     }
 }
 
+// Función para obtener fs de forma segura
+function getFS() {
+    try {
+        return require('fs');
+    } catch (error) {
+        console.error('❌ No se puede acceder a fs:', error);
+        return null;
+    }
+}
+
 // Exponer APIs al renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     async initializeExcelService() {
@@ -38,8 +47,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
             console.log('📊 Inicializando servicio Excel desde preload...');
             
             const XLSX = getXLSX();
+            const fs = getFS();
+            
             if (!XLSX) {
                 return { success: false, message: 'XLSX no está instalado' };
+            }
+            
+            if (!fs) {
+                return { success: false, message: 'No se puede acceder al sistema de archivos' };
+            }
+            
+            // Crear directorio si no existe
+            const dir = EXCEL_CONFIG.defaultPath;
+            if (!fs.existsSync(dir)) {
+                console.log('📁 Creando directorio:', dir);
+                fs.mkdirSync(dir, { recursive: true });
             }
             
             const defaultFilePath = path.join(EXCEL_CONFIG.defaultPath, EXCEL_CONFIG.fileName);
@@ -47,7 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
             
             // Verificar si el archivo existe
             if (fs.existsSync(defaultFilePath)) {
-                console.log('📁 Archivo Excel encontrado, cargando...');
+                console.log('📄 Archivo Excel encontrado, cargando...');
                 try {
                     excelWorkbook = XLSX.readFile(defaultFilePath);
                     currentExcelPath = defaultFilePath;
@@ -62,13 +84,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
                 console.log('📝 Archivo no existe, creando nueva base de datos...');
                 
                 try {
-                    // Crear directorio si no existe
-                    const dir = path.dirname(defaultFilePath);
-                    if (!fs.existsSync(dir)) {
-                        console.log('📁 Creando directorio:', dir);
-                        fs.mkdirSync(dir, { recursive: true });
-                    }
-                    
                     // Crear nuevo workbook
                     const workbook = XLSX.utils.book_new();
                     
@@ -170,6 +185,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
                 return { success: false, message: 'XLSX no disponible' };
             }
             
+            // Actualizar estados en registros
+            let registrosSheet = excelWorkbook.Sheets[EXCEL_CONFIG.sheets.registros];
+            const registrosArray = XLSX.utils.sheet_to_json(registrosSheet, { header: 1 });
+            
+            for (let i = 1; i < registrosArray.length; i++) {
+                if (registrosIds.includes(registrosArray[i][0])) {
+                    registrosArray[i][5] = 'Despachado'; // Columna Estado
+                }
+            }
+            
+            // Recrear hoja de registros
+            registrosSheet = XLSX.utils.aoa_to_sheet(registrosArray);
+            excelWorkbook.Sheets[EXCEL_CONFIG.sheets.registros] = registrosSheet;
+            
             // Procesar salidas
             let salidasSheet = excelWorkbook.Sheets[EXCEL_CONFIG.sheets.salidas];
             if (!salidasSheet) {
@@ -201,20 +230,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
             salidasSheet = XLSX.utils.aoa_to_sheet(currentSalidasData);
             excelWorkbook.Sheets[EXCEL_CONFIG.sheets.salidas] = salidasSheet;
             
-            // Actualizar estados en registros
-            let registrosSheet = excelWorkbook.Sheets[EXCEL_CONFIG.sheets.registros];
-            const registrosArray = XLSX.utils.sheet_to_json(registrosSheet, { header: 1 });
-            
-            for (let i = 1; i < registrosArray.length; i++) {
-                if (registrosIds.includes(registrosArray[i][0])) {
-                    registrosArray[i][5] = 'Despachado'; // Columna Estado
-                }
-            }
-            
-            // Recrear hoja de registros
-            registrosSheet = XLSX.utils.aoa_to_sheet(registrosArray);
-            excelWorkbook.Sheets[EXCEL_CONFIG.sheets.registros] = registrosSheet;
-            
             // Guardar archivo
             XLSX.writeFile(excelWorkbook, currentExcelPath);
             
@@ -229,44 +244,107 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     async loadDataFromExcel() {
         try {
-          console.log('📊 Cargando datos desde Excel...');
-        
-          if (!isExcelLoaded || !excelWorkbook) {
-            console.warn('⚠️ Excel no está cargado');
-            return { success: false, message: 'Excel no está cargado' };
-          }
+            console.log('📊 Cargando datos desde Excel...');
+            
+            if (!isExcelLoaded || !excelWorkbook) {
+                console.warn('⚠️ Excel no está cargado');
+                return { success: false, message: 'Excel no está cargado' };
+            }
 
-          const XLSX = getXLSX();
-          if (!XLSX) {
-            return { success: false, message: 'XLSX no disponible' };
-          }
-        
-          const data = {
-            registros: [],
-            salidas: []
-          };
-        
-          // Leer registros
-          const registrosSheet = excelWorkbook.Sheets[EXCEL_CONFIG.sheets.registros];
-          if (registrosSheet) {
-            const registrosArray = XLSX.utils.sheet_to_json(registrosSheet);
-            data.registros = registrosArray;
-            console.log(`📊 ${registrosArray.length} registros cargados desde Excel`);
-          }
-        
-         // Leer salidas
-          const salidasSheet = excelWorkbook.Sheets[EXCEL_CONFIG.sheets.salidas];
-          if (salidasSheet) {
-             const salidasArray = XLSX.utils.sheet_to_json(salidasSheet);
-             data.salidas = salidasArray;
-             console.log(`📦 ${salidasArray.length} salidas cargadas desde Excel`);
-          }
-        
-          return { success: true, data: data };
-        
+            const XLSX = getXLSX();
+            if (!XLSX) {
+                return { success: false, message: 'XLSX no disponible' };
+            }
+            
+            const data = {
+                registros: [],
+                salidas: []
+            };
+            
+            // Leer registros
+            const registrosSheet = excelWorkbook.Sheets[EXCEL_CONFIG.sheets.registros];
+            if (registrosSheet) {
+                const registrosArray = XLSX.utils.sheet_to_json(registrosSheet);
+                data.registros = registrosArray;
+                console.log(`📊 ${registrosArray.length} registros cargados desde Excel`);
+            }
+            
+            // Leer salidas
+            const salidasSheet = excelWorkbook.Sheets[EXCEL_CONFIG.sheets.salidas];
+            if (salidasSheet) {
+                const salidasArray = XLSX.utils.sheet_to_json(salidasSheet);
+                
+                // Agrupar salidas por ID_Salida
+                const salidasMap = new Map();
+                
+                salidasArray.forEach(row => {
+                    const idSalida = row.ID_Salida;
+                    
+                    if (!salidasMap.has(idSalida)) {
+                        salidasMap.set(idSalida, {
+                            ID_Salida: idSalida,
+                            Fecha_Despacho: row.Fecha_Despacho,
+                            Persona_Autoriza: row.Persona_Autoriza,
+                            Observaciones: row.Observaciones,
+                            Registros_Procesados: 0,
+                            Detalle_Grupos: []
+                        });
+                    }
+                    
+                    const salida = salidasMap.get(idSalida);
+                    salida.Registros_Procesados++;
+                    
+                    // Agrupar por tipo
+                    let grupo = salida.Detalle_Grupos.find(g => g.tipo === row.Tipo);
+                    if (!grupo) {
+                        grupo = {
+                            tipo: row.Tipo,
+                            cantidad: 0,
+                            peso: 0,
+                            ids: []
+                        };
+                        salida.Detalle_Grupos.push(grupo);
+                    }
+                    
+                    grupo.cantidad++;
+                    grupo.peso += parseFloat(row.Peso) || 0;
+                    grupo.ids.push(row.ID_Registro);
+                });
+                
+                data.salidas = Array.from(salidasMap.values());
+                console.log(`📦 ${data.salidas.length} salidas cargadas desde Excel`);
+            }
+            
+            return { success: true, data: data };
+            
         } catch (error) {
-           console.error('❌ Error cargando datos desde Excel:', error);
-           return { success: false, message: error.message };
+            console.error('❌ Error cargando datos desde Excel:', error);
+            return { success: false, message: error.message };
+        }
+    },
+
+    async openExcelFile(filePath) {
+        try {
+            const XLSX = getXLSX();
+            const fs = getFS();
+            
+            if (!XLSX || !fs) {
+                return { success: false, message: 'XLSX o fs no disponible' };
+            }
+            
+            if (fs.existsSync(filePath)) {
+                excelWorkbook = XLSX.readFile(filePath);
+                currentExcelPath = filePath;
+                isExcelLoaded = true;
+                
+                console.log('✅ Archivo Excel abierto:', filePath);
+                return { success: true, message: 'Archivo abierto correctamente' };
+            } else {
+                return { success: false, message: 'El archivo no existe' };
+            }
+        } catch (error) {
+            console.error('❌ Error abriendo archivo:', error);
+            return { success: false, message: error.message };
         }
     },
     
