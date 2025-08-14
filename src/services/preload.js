@@ -181,7 +181,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
             }
 
             const XLSX = getXLSX();
-            if (!XLSX) {
+            const fs = getFS();
+
+            if (!XLSX || !fs) {
                 return { success: false, message: 'XLSX no disponible' };
             }
             
@@ -202,39 +204,50 @@ contextBridge.exposeInMainWorld('electronAPI', {
             // Procesar salidas
             let salidasSheet = excelWorkbook.Sheets[EXCEL_CONFIG.sheets.salidas];
             if (!salidasSheet) {
-                console.error('❌ Hoja de salidas no encontrada');
-                return { success: false, message: 'Hoja de salidas no encontrada' };
+                console.log('📝 Creando hoja de salidas...');
+                const salidasHeaders = [['ID_Salida', 'ID_Registro', 'Tipo', 'Peso', 'Fecha_Despacho', 'Persona_Autoriza', 'Observaciones']];
+                salidasSheet = XLSX.utils.aoa_to_sheet(salidasHeaders);
+                excelWorkbook.Sheets[EXCEL_CONFIG.sheets.salidas] = salidasSheet;
             }
             
             const currentSalidasData = XLSX.utils.sheet_to_json(salidasSheet, { header: 1 });
             
             // Expandir salida grupal
             if (salidaData.Detalle_Grupos && salidaData.Detalle_Grupos.length > 0) {
-                salidaData.Detalle_Grupos.forEach(grupo => {
+            salidaData.Detalle_Grupos.forEach(grupo => {
+                if (grupo.ids && Array.isArray(grupo.ids)) {
                     grupo.ids.forEach(registroId => {
-                        const salidaArray = [
-                            salidaData.ID_Salida,
-                            registroId,
-                            grupo.tipo,
-                            (grupo.peso / grupo.ids.length).toFixed(2),
-                            salidaData.Fecha_Despacho,
-                            salidaData.Persona_Autoriza,
-                            salidaData.Observaciones || ''
-                        ];
-                        currentSalidasData.push(salidaArray);
+                        // Buscar el registro para obtener sus datos completos
+                        const registro = registrosArray.find(r => r[0] === registroId);
+                        if (registro) {
+                            const salidaArray = [
+                                salidaData.ID_Salida,
+                                registroId,
+                                grupo.tipo,
+                                (grupo.peso / grupo.ids.length).toFixed(2),
+                                salidaData.Fecha_Despacho,
+                                salidaData.Persona_Autoriza,
+                                salidaData.Observaciones || ''
+                            ];
+                            currentSalidasData.push(salidaArray);
+                        }
                     });
-                });
-            }
+                }
+            });
+        } else {
+            console.warn('⚠️ No hay Detalle_Grupos en la salida');
+        }
             
-            // Recrear hoja de salidas
-            salidasSheet = XLSX.utils.aoa_to_sheet(currentSalidasData);
-            excelWorkbook.Sheets[EXCEL_CONFIG.sheets.salidas] = salidasSheet;
             
-            // Guardar archivo
-            XLSX.writeFile(excelWorkbook, currentExcelPath);
+         // Recrear hoja de salidas
+        salidasSheet = XLSX.utils.aoa_to_sheet(currentSalidasData);
+        excelWorkbook.Sheets[EXCEL_CONFIG.sheets.salidas] = salidasSheet;
             
-            console.log('✅ Salida procesada en Excel:', salidaData.ID_Salida);
-            return { success: true, message: 'Salida procesada correctamente' };
+        // Guardar archivo
+        XLSX.writeFile(excelWorkbook, currentExcelPath);
+            
+        console.log('✅ Salida procesada en Excel:', salidaData.ID_Salida);
+        return { success: true, message: 'Salida procesada correctamente' };
             
         } catch (error) {
             console.error('❌ Error procesando salida en preload:', error);

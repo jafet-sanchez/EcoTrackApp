@@ -150,24 +150,6 @@ function setupMenu() {
         },
         { type: 'separator' },
         {
-          label: 'Exportar Reportes',
-          submenu: [
-            {
-              label: 'Reporte Completo',
-              click: () => {
-                mainWindow.webContents.send('menu-exportar-reporte', 'completo');
-              }
-            },
-            {
-              label: 'Reporte por Fechas',
-              click: () => {
-                mainWindow.webContents.send('menu-exportar-reporte', 'fechas');
-              }
-            }
-          ]
-        },
-        { type: 'separator' },
-        {
           label: 'Salir',
           accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
           click: () => {
@@ -183,14 +165,14 @@ function setupMenu() {
           label: 'Nuevo Registro',
           accelerator: 'CmdOrCtrl+R',
           click: () => {
-            mainWindow.webContents.send('menu-nuevo-registro');
+            mainWindow.webContents.send('fas fa-plus mr-2');
           }
         },
         {
           label: 'Ver Historial',
           accelerator: 'CmdOrCtrl+H',
           click: () => {
-            mainWindow.webContents.send('menu-ver-historial');
+            mainWindow.webContents.send('fas fa-list mr-2');
           }
         }
       ]
@@ -202,7 +184,7 @@ function setupMenu() {
           label: 'Nueva Salida',
           accelerator: 'CmdOrCtrl+D',
           click: () => {
-            mainWindow.webContents.send('menu-nueva-salida');
+            mainWindow.webContents.send('fas fa-truck mr-2');
           }
         },
       ]

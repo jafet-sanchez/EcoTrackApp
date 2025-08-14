@@ -21,6 +21,13 @@ function getNextRegistroId() {
     const maxId = Math.max(...registrosData.map(r => r.ID || 0));
     return maxId + 1;
 }
+function getNextSalidaId() {
+    if (salidasData.length === 0) return 1;
+    
+    // Encontrar el ID máximo actual
+    const maxId = Math.max(...salidasData.map(s => s.ID_Salida || 0));
+    return maxId + 1;
+}
 
 // Referencias a elementos del DOM
 const elements = {
@@ -169,18 +176,6 @@ function setupToolButtons() {
     const aplicarFiltros = document.getElementById('aplicar-filtros');
     if (aplicarFiltros) {
         aplicarFiltros.addEventListener('click', applyFilters);
-    }
-    
-    // Exportar reportes
-    const exportExcel = document.getElementById('export-excel');
-    const exportPdf = document.getElementById('export-pdf');
-    
-    if (exportExcel) {
-        exportExcel.addEventListener('click', () => exportReport('excel'));
-    }
-    
-    if (exportPdf) {
-        exportPdf.addEventListener('click', () => exportReport('pdf'));
     }
 }
 
@@ -591,7 +586,7 @@ function loadRegistrosDisponiblesAgrupados() {
         container.appendChild(grupoElement);
     });
     
-    // Mostrar registros despachados individualmente (solo para referencia, no seleccionables)
+    // Mostrar registros despachados individualmente 
     if (registrosDespachados.length > 0) {
         const separador = document.createElement('div');
         separador.className = 'border-t border-gray-500 my-3 pt-3';
@@ -779,7 +774,8 @@ function createSalidaRowDetallada(salida) {
     // Agregar evento para mostrar detalles al hacer clic
     if (salida.Detalle_Grupos && salida.Detalle_Grupos.length > 0) {
         row.title = 'Clic para ver detalles del despacho grupal';
-        row.addEventListener('click', () => mostrarDetallesSalida(salida));
+        row.addEventListener('click', () =>
+            mostrarDetallesSalida(salida));
     }
     
     return row;
@@ -789,6 +785,10 @@ function createSalidaRowDetallada(salida) {
  * Mostrar detalles de una salida grupal
  */
 function mostrarDetallesSalida(salida) {
+    // PRUEBA
+    console.log('Datos de salida recibidos:', salida);
+    console.log('ID_Salida:', salida.ID_Salida);
+    console.log('Detalle_Grupos:', salida.Detalle_Grupos);
      // Verificar que la salida tenga la estructura esperada
     if (!salida || !salida.ID_Salida) {
         showToast('Error', 'Datos de salida no válidos', 'error');
@@ -958,23 +958,118 @@ async function procesarSalidaGrupal(registrosSeleccionados, gruposSeleccionados)
 
         // Crear registro de salida con información de grupos
         const nuevaSalida = {
-            ID_Salida: salidasData.length + 1,
+            ID_Salida: getNextSalidaId(),
             Fecha_Despacho: salidaData.fechaSalida,
             Persona_Autoriza: salidaData.personaAutoriza,
             Registros_Procesados: registrosSeleccionados.length,
             Grupos_Procesados: gruposSeleccionados.length,
             Tipos_Despachados: gruposSeleccionados.map(g => g.tipo).join(', '),
             Observaciones: salidaData.observaciones,
-            Detalle_Grupos: gruposSeleccionados
+            Detalle_Grupos: gruposSeleccionados.map(grupo => ({
+                tipo: grupo.tipo,
+                cantidad: grupo.cantidad,
+                peso: grupo.peso,
+                ids: grupo.ids,
+                personas: grupo.personas || []
+            }))
         };
+         // este console.log para verificar
+        console.log('Nueva salida creada:', nuevaSalida);
+        console.log('ID_Salida es:', nuevaSalida.ID_Salida, 'tipo:', typeof nuevaSalida.ID_Salida);
 
         // Procesar salida completa (memoria + Excel)
         const success = await procesarSalidaCompleta(registrosSeleccionados, nuevaSalida);
+        
         if (success) {
+            // s Recargar datos desde Excel para sincronizar
+            if (window.electronAPI) {
+                const result = await window.electronAPI.loadDataFromExcel();
+                if (result.success && result.data) {
+                    // Actualizar arrays locales con datos nuevos del Excel
+                    registrosData.length = 0;
+                    registrosData.push(...(result.data.registros || []));
+                    
+                    // Reconstruir salidas desde Excel
+                    const salidasRaw = result.data.salidas || [];
+                    salidasData.length = 0;
+                    
+                    // Agrupar salidas por ID_Salida
+                    const salidasMap = new Map();
+                    
+                    salidasRaw.forEach(row => {
+                        const idSalida = row.ID_Salida;
+                        
+                        if (!salidasMap.has(idSalida)) {
+                            salidasMap.set(idSalida, {
+                                ID_Salida: idSalida,
+                                Fecha_Despacho: row.Fecha_Despacho || row.Fecha_Desp,
+                                Persona_Autoriza: row.Persona_Autoriza || row.Persona_Aut,
+                                Observaciones: row.Observaciones || '',
+                                Registros_Procesados: 0,
+                                Grupos_Procesados: 0,
+                                Tipos_Despachados: '',
+                                Detalle_Grupos: []
+                            });
+                        }
+                        
+                        const salida = salidasMap.get(idSalida);
+                        salida.Registros_Procesados++;
+                        
+                        // Buscar si ya existe el grupo del tipo
+                        let grupo = salida.Detalle_Grupos.find(g => g.tipo === row.Tipo);
+                        if (!grupo) {
+                            grupo = {
+                                tipo: row.Tipo,
+                                cantidad: 0,
+                                peso: 0,
+                                ids: [],
+                                personas: []
+                            };
+                            salida.Detalle_Grupos.push(grupo);
+                        }
+                        
+                        grupo.cantidad++;
+                        grupo.peso += parseFloat(row.Peso) || 0;
+                        if (!grupo.ids.includes(row.ID_Registro)) {
+                            grupo.ids.push(row.ID_Registro);
+                        }
+                        
+                        // Agregar persona si no está
+                        const registro = registrosData.find(r => r.ID === row.ID_Registro);
+                        if (registro && registro.Persona && !grupo.personas.includes(registro.Persona)) {
+                            grupo.personas.push(registro.Persona);
+                        }
+                    });
+                    
+                    // Finalizar datos de cada salida
+                    salidasMap.forEach(salida => {
+                        salida.Grupos_Procesados = salida.Detalle_Grupos.length;
+                        salida.Tipos_Despachados = salida.Detalle_Grupos.map(g => g.tipo).join(', ');
+                    });
+                    
+                    // Convertir el Map a array
+                    salidasData.push(...Array.from(salidasMap.values()));
+                    
+                    console.log('✅ Datos sincronizados desde Excel');
+                    console.log(`📊 ${registrosData.length} registros, ${salidasData.length} salidas`);
+                }
+            } else {
+                // Si no hay Excel, agregar manualmente
+                salidasData.push(nuevaSalida);
+                
+                // Actualizar estados de registros en memoria
+                registrosSeleccionados.forEach(id => {
+                    const registro = registrosData.find(r => r.ID === id);
+                    if (registro) {
+                        registro.Estado = 'Despachado';
+                    }
+                });
+            }
+            
             hideLoading();
 
             // Mensaje de éxito detallado
-            const successMessage = `Salida procesada exitosamente:\n` +
+            const successMessage = `Salida #${nuevaSalida.ID_Salida} procesada exitosamente:\n` +
                 `• ${gruposSeleccionados.length} grupos despachados\n` +
                 `• ${registrosSeleccionados.length} registros totales\n` +
                 `• Tipos: ${gruposSeleccionados.map(g => g.tipo).join(', ')}\n` +
@@ -982,13 +1077,19 @@ async function procesarSalidaGrupal(registrosSeleccionados, gruposSeleccionados)
 
             showToast('Éxito', successMessage, 'success');
 
-            // Actualizar datos
+            // Actualizar todas las vistas
             updateDashboard();
             loadSalidasData();
+            
+            // Si estamos en historial, actualizarlo también
+            if (currentSection === 'historial') {
+                loadHistorialData();
+            }
 
             // Limpiar formulario
             document.getElementById('form-salida').reset();
             setupDateTimeInputs();
+            
         } else {
             hideLoading();
             showToast('Error', 'No se pudo procesar la salida completa', 'error');
@@ -1633,19 +1734,7 @@ async function refreshHistorialData() {
     }, 1000);
 }
 
-/**
- * Exportar reportes
- */
-async function exportReport(format) {
-    console.log(`📊 Exportar reporte en formato: ${format}`);
-    
-    showLoading(`Generando reporte ${format.toUpperCase()}...`);
-    
-    setTimeout(() => {
-        hideLoading();
-        showToast('Éxito', `Reporte ${format.toUpperCase()} generado exitosamente`, 'success');
-    }, 2000);
-}
+
 
 // ===========================================
 // ATAJOS DE TECLADO
