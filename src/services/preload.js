@@ -300,6 +300,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
                             Persona_Autoriza: row.Persona_Autoriza,
                             Observaciones: row.Observaciones,
                             Registros_Procesados: 0,
+                            Grupos_Procesados: 0,
+                            Tipos_Despachados: '',
                             Detalle_Grupos: []
                         });
                     }
@@ -314,14 +316,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
                             tipo: row.Tipo,
                             cantidad: 0,
                             peso: 0,
-                            ids: []
+                            ids: [],
+                            personas: []
                         };
                         salida.Detalle_Grupos.push(grupo);
                     }
                     
                     grupo.cantidad++;
                     grupo.peso += parseFloat(row.Peso) || 0;
+
+                    // Agregar ID si no existe
+                    if (!grupo.ids.includes(row.ID_Registro)) {
                     grupo.ids.push(row.ID_Registro);
+                    }
+
+                    // IMPORTANTE: Buscar la persona del registro original
+                    const registroOriginal = data.registros.find(r => r.ID === row.ID_Registro);
+                    if (registroOriginal && registroOriginal.Persona && !grupo.personas.includes(registroOriginal.Persona)) {
+                        grupo.personas.push(registroOriginal.Persona);
+                    }
+                    
+                });
+
+                // Finalizar datos de cada salida
+                salidasMap.forEach(salida => {
+                    salida.Grupos_Procesados = salida.Detalle_Grupos.length;
+                    salida.Tipos_Despachados = salida.Detalle_Grupos.map(g => g.tipo).join(', ');
                 });
                 
                 data.salidas = Array.from(salidasMap.values());
